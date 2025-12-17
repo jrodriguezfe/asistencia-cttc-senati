@@ -1,0 +1,28 @@
+:root {
+    --color-principal: #000000;
+    --color-acento-senati: #008f39;
+    --color-acento-hover: #00702d;
+    --fw-black: 900;
+}
+
+.bg-principal { background-color: var(--color-principal) !important; }
+.text-principal { color: var(--color-principal); }
+
+#timer-display {
+    font-size: 5rem;
+    font-weight: var(--fw-black);
+    letter-spacing: -2px;
+    color: var(--color-acento-senati) !important;
+}
+
+.card { border-radius: 15px; }
+
+.btn-success { background-color: var(--color-acento-senati); border: none; }
+.btn-success:hover { background-color: var(--color-acento-hover); }
+
+/* Feedback visual de cronómetro activo */
+#end-zone textarea { border-left: 5px solid var(--color-acento-senati); }
+
+@media (max-width: 576px) {
+    #timer-display { font-size: 3.5rem; }
+}
