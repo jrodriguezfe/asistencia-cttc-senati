@@ -109,6 +109,11 @@ function cargarReporteAsistencias() {
                     <td>${a.actividad}</td>
                     <td><span class="badge bg-success">${a.horasTotales.toFixed(2)}</span></td>
                     <td>${a.urlEvidencia ? `<a href="${a.urlEvidencia}" target="_blank">Link</a>` : '---'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger" onclick="eliminarAsistencia('${doc.id}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
                 </tr>`;
             }
         });
@@ -130,3 +135,17 @@ function exportarExcel() {
     link.download = "Reporte_Horas_CTTC.csv";
     link.click();
 }
+
+async function eliminarAsistencia(id) {
+    if (confirm("¿Estás seguro de que deseas eliminar este registro de asistencia?")) {
+        try {
+            await db.collection('asistencias').doc(id).delete();
+            alert("Registro eliminado correctamente.");
+            cargarReporteAsistencias(); // Recargar la tabla
+        } catch (error) {
+            console.error("Error al eliminar:", error);
+            alert("No se pudo eliminar el registro. Revisa los permisos.");
+        }
+    }
+}
+
