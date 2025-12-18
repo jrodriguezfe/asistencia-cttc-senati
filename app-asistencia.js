@@ -95,31 +95,54 @@ function cargarReporteAsistencias() {
     const container = document.getElementById('tabla-reportes-body');
     if (!container) return;
 
+    // Obtener valores de los filtros
+    const filtroNombre = document.getElementById('filtro-nombre').value.toLowerCase();
+    const filtroDesde = document.getElementById('filtro-desde').value;
+    const filtroHasta = document.getElementById('filtro-hasta').value;
+
     db.collection('asistencias').orderBy('inicio', 'desc').get().then(snapshot => {
         let html = '';
         let suma = 0;
+
         snapshot.forEach(doc => {
             const a = doc.data();
             if (a.estado === "finalizado") {
-                suma += a.horasTotales;
-                const fecha = a.inicio ? a.inicio.toDate().toLocaleDateString() : '---';
-                html += `<tr>
-                    <td>${fecha}</td>
-                    <td><strong>${a.nombre}</strong></td>
-                    <td>${a.actividad}</td>
-                    <td><span class="badge bg-success">${a.horasTotales.toFixed(2)}</span></td>
-                    <td>${a.urlEvidencia ? `<a href="${a.urlEvidencia}" target="_blank">Link</a>` : '---'}</td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-danger" onclick="eliminarAsistencia('${doc.id}')">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                </tr>`;
+                const fechaObj = a.inicio ? a.inicio.toDate() : null;
+                const fechaStr = fechaObj ? fechaObj.toLocaleDateString() : '---';
+                const fechaISO = fechaObj ? fechaObj.toISOString().split('T')[0] : '';
+                
+                // Lógica de Filtrado
+                let cumpleNombre = a.nombre.toLowerCase().includes(filtroNombre);
+                let cumpleDesde = filtroDesde ? (fechaISO >= filtroDesde) : true;
+                let cumpleHasta = filtroHasta ? (fechaISO <= filtroHasta) : true;
+
+                if (cumpleNombre && cumpleDesde && cumpleHasta) {
+                    suma += a.horasTotales;
+                    html += `<tr>
+                        <td>${fechaStr}</td>
+                        <td><strong>${a.nombre}</strong></td>
+                        <td>${a.actividad}</td>
+                        <td><span class="badge bg-success">${a.horasTotales.toFixed(2)}</span></td>
+                        <td>${a.urlEvidencia ? `<a href="${a.urlEvidencia}" target="_blank">Link</a>` : '---'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-danger" onclick="eliminarAsistencia('${doc.id}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+                }
             }
         });
         container.innerHTML = html;
         document.getElementById('total-horas-acumuladas').innerText = suma.toFixed(2);
     });
+}
+
+function limpiarFiltros() {
+    document.getElementById('filtro-nombre').value = '';
+    document.getElementById('filtro-desde').value = '';
+    document.getElementById('filtro-hasta').value = '';
+    cargarReporteAsistencias();
 }
 
 function exportarExcel() {

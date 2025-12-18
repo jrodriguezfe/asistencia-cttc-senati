@@ -8,6 +8,25 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
+
+<div class="row g-3 mb-4 p-3 bg-light rounded border">
+    <div class="col-md-4">
+        <label class="form-label fw-bold">Filtrar por Docente</label>
+        <input type="text" id="filtro-nombre" class="form-control" placeholder="Nombre del docente..." oninput="cargarReporteAsistencias()">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label fw-bold">Fecha Inicio</label>
+        <input type="date" id="filtro-desde" class="form-control" onchange="cargarReporteAsistencias()">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label fw-bold">Fecha Fin</label>
+        <input type="date" id="filtro-hasta" class="form-control" onchange="cargarReporteAsistencias()">
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-outline-secondary w-100" onclick="limpiarFiltros()">Limpiar</button>
+    </div>
+</div>
+
 <body class="bg-light">
 
     <div class="container py-5">
