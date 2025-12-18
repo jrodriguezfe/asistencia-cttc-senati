@@ -1,11 +1,11 @@
 // Configuración de Firebase (Usa las mismas de tu catálogo)
 const firebaseConfig = {
-  apiKey: "AIzaSyBqmHPwfCeDucSMykNdgVBFlaUe3V1P0Bg",
-  authDomain: "catalogo-cttc-docente.firebaseapp.com",
-  projectId: "catalogo-cttc-docente",
-  storageBucket: "catalogo-cttc-docente.firebasestorage.app",
-  messagingSenderId: "794068355676",
-  appId: "1:794068355676:web:5e361e87d7f31d5256f499"
+  apiKey: "AIzaSyCkc78g60mGIM6E6y-6muW7icx99tzW4Fk",
+  authDomain: "asistencia-cttc-senati.firebaseapp.com",
+  projectId: "asistencia-cttc-senati",
+  storageBucket: "asistencia-cttc-senati.firebasestorage.app",
+  messagingSenderId: "91519430062",
+  appId: "1:91519430062:web:bfa3f681912fd283832c3f"
 };
 
 firebase.initializeApp(firebaseConfig);
