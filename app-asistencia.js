@@ -20,6 +20,11 @@ const params = new URLSearchParams(window.location.search);
 const docenteNombre = params.get('name');
 const docenteUID = params.get('uid');
 
+// Verifica en consola si los datos llegan al cargar la página
+console.log("Datos recibidos:", { docenteUID, docenteNombre });
+
+
+
 document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('welcome-msg')) {
         document.getElementById('welcome-msg').innerText = `Hola, ${docenteNombre}`;
@@ -48,7 +53,8 @@ async function startSession() {
         document.getElementById('end-zone').style.display = 'block';
         
         iniciarCronometro();
-    } catch (e) { alert("Error al iniciar jornada."); }
+    } catch (e) { console.error("Detalle del error:", e);
+        alert("Error al iniciar jornada: " + e.message);}
 }
 
 async function endSession() {
