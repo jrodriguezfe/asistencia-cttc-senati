@@ -14,6 +14,7 @@ const db = firebase.firestore();
 let timerInterval;
 let startTime;
 let currentAsistenciaId;
+let datosCierreMes = []; // Variable global para guardar el último reporte generado
 
 // Capturar parámetros de la URL enviados desde el Catálogo
 const params = new URLSearchParams(window.location.search);
@@ -172,3 +173,65 @@ async function eliminarAsistencia(id) {
     }
 }
 
+function generarReporteCierreMes() {
+    const filas = document.querySelectorAll("#tabla-reportes-body tr");
+    const resumen = {};
+    datosCierreMes = [];
+
+    if (filas.length === 0) {
+        return alert("No hay datos en la tabla. Filtre por fechas primero.");
+    }
+
+    // Agrupar horas por docente
+    filas.forEach(fila => {
+        const nombre = fila.cells[1].innerText;
+        const horas = parseFloat(fila.cells[3].innerText) || 0;
+        
+        if (resumen[nombre]) {
+            resumen[nombre] += horas;
+        } else {
+            resumen[nombre] = horas;
+        }
+    });
+
+    // Construir tabla del modal
+    let html = `
+        <table class="table table-bordered">
+            <thead class="table-light">
+                <tr><th>Docente</th><th class="text-end">Total Horas</th></tr>
+            </thead>
+            <tbody>`;
+    
+    for (const docente in resumen) {
+        datosCierreMes.push({ docente, horas: resumen[docente].toFixed(2) });
+        html += `
+            <tr>
+                <td>${docente}</td>
+                <td class="text-end fw-bold text-success">${resumen[docente].toFixed(2)}</td>
+            </tr>`;
+    }
+    html += `</tbody></table>`;
+    
+    // Insertar contenido
+    document.getElementById('contenido-reporte-cierre').innerHTML = html;
+
+    // FORMA ALTERNATIVA DE ABRIR EL MODAL (Si la anterior falla)
+    const modalElement = document.getElementById('modalCierreMes');
+    const myModal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    myModal.show();
+}
+
+function exportarCierreExcel() {
+    if (datosCierreMes.length === 0) return;
+
+    let csv = "\ufeffDocente;Total Horas Acumuladas\n";
+    datosCierreMes.forEach(d => {
+        csv += `"${d.docente}";"${d.horas}"\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Cierre_Mes_Asistencia.csv`;
+    link.click();
+}
