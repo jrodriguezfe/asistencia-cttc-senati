@@ -13,25 +13,6 @@
 
 <body class="bg-light">
 
-    <div class="row g-3 mb-4 p-3 bg-light rounded border">
-        <div class="col-md-4">
-            <label class="form-label fw-bold">Filtrar por Docente</label>
-            <input type="text" id="filtro-nombre" class="form-control" placeholder="Nombre del docente..." oninput="cargarReporteAsistencias()">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label fw-bold">Fecha Inicio</label>
-            <input type="date" id="filtro-desde" class="form-control" onchange="cargarReporteAsistencias()">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label fw-bold">Fecha Fin</label>
-            <input type="date" id="filtro-hasta" class="form-control" onchange="cargarReporteAsistencias()">
-        </div>
-        <div class="col-md-2 d-flex align-items-end">
-            <button class="btn btn-outline-secondary w-100" onclick="limpiarFiltros()">Limpiar</button>
-        </div>
-    </div>
-
-
     <div class="container py-5">
         <div class="card shadow-sm border-0 p-4">
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -44,6 +25,26 @@
                 </div>
             </div>
 
+            <div class="row g-3 mb-4 p-3 bg-light rounded border">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Filtrar por Docente</label>
+                    <input type="text" id="filtro-nombre" class="form-control" placeholder="Nombre del docente..." oninput="cargarReporteAsistencias()">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Fecha Inicio</label>
+                    <input type="date" id="filtro-desde" class="form-control" onchange="cargarReporteAsistencias()">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Fecha Fin</label>
+                    <input type="date" id="filtro-hasta" class="form-control" onchange="cargarReporteAsistencias()">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-outline-secondary w-100" onclick="limpiarFiltros()">Limpiar</button>
+                </div>
+            </div>
+            
+            
+            
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
                     <thead class="table-dark">
