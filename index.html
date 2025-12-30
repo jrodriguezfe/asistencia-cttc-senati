@@ -37,18 +37,81 @@
                         <div class="alert alert-info text-start mb-4">
                             <i class="bi bi-info-circle-fill"></i> La sesión está siendo cronometrada.
                         </div>
+
+                        <div class="row g-2 mb-3 text-start">
+                            <div class="col-md-8">
+                                <label class="form-label fw-bold">Nombre del Curso:</label>
+                                <input type="text" id="curso-input" class="form-control" placeholder="Ej: Tecnología Textil">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">NRC:</label>
+                                <input type="text" id="nrc-input" class="form-control" placeholder="12345">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">N° Sesión:</label>
+                                <input type="number" id="sesion-input" class="form-control" min="1">
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label fw-bold">Modalidad:</label>
+                                <select id="modalidad-input" class="form-select">
+                                    <option value="Presencial">Presencial</option>
+                                    <option value="Online">Online</option>
+                                    <option value="Semipresencial">Semipresencial</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <div class="mb-3 text-start">
-                            <label class="form-label fw-bold">Actividad / Tema Dictado:</label>
-                            <textarea id="actividad-input" class="form-control" rows="3" placeholder="Ej: Clase de Tecnología Textil - Turno Noche"></textarea>
+                            <label class="form-label fw-bold">Tema Dictado:</label>
+                            <textarea id="tema-input" class="form-control" rows="2" placeholder="Describa el tema desarrollado"></textarea>
                         </div>
+
+                        <div class="mb-3 text-start">
+                            <label class="form-label fw-bold">Comentarios:</label>
+                            <textarea id="comentarios-input" class="form-control" rows="2" placeholder="Observaciones adicionales..."></textarea>
+                        </div>
+
+                        <div class="bg-white p-3 rounded border text-start mb-4 shadow-sm">
+                            <h6 class="fw-bold text-success border-bottom pb-2">Declaración Jurada</h6>
+                            <div class="form-check small mb-1">
+                                <input class="form-check-input" type="checkbox" id="chk-plan">
+                                <label class="form-check-label" for="chk-plan">¿Subió el plan de sesión?</label>
+                            </div>
+                            <div class="form-check small mb-1">
+                                <input class="form-check-input" type="checkbox" id="chk-asistencia">
+                                <label class="form-check-label" for="chk-asistencia">¿Registró asistencia en Blackboard?</label>
+                            </div>
+                            <div class="form-check small mb-1">
+                                <input class="form-check-input" type="checkbox" id="chk-fechas">
+                                <label class="form-check-label" for="chk-fechas">¿Colocó fechas de entrega en BB?</label>
+                            </div>
+                            <div class="form-check small mb-1">
+                                <input class="form-check-input" type="checkbox" id="chk-objetivos">
+                                <label class="form-check-label" for="chk-objetivos">¿Presentó objetivos al inicio?</label>
+                            </div>
+                            <div class="form-check small mb-1">
+                                <input class="form-check-input" type="checkbox" id="chk-grabacion">
+                                <label class="form-check-label" for="chk-grabacion">¿Inició y finalizó la grabación?</label>
+                            </div>
+                            <div class="form-check small mb-1">
+                                <input class="form-check-input" type="checkbox" id="chk-retro">
+                                <label class="form-check-label" for="chk-retro">¿Realizó retroalimentación escrita?</label>
+                            </div>
+                        </div>
+
                         <div class="mb-4 text-start">
-                            <label class="form-label fw-bold">Link de Evidencia (Teams/Meet):</label>
-                            <input type="url" id="evidencia-input" class="form-control" placeholder="https://teams.microsoft.com/...">
+                            <label class="form-label fw-bold">Link de Evidencia:</label>
+                            <input type="url" id="evidencia-input" class="form-control" placeholder="URL de la grabación o material">
                         </div>
+
                         <button class="btn btn-danger btn-lg w-100 py-3 fw-bold shadow" onclick="endSession()">
                             <i class="bi bi-stop-circle-fill"></i> FINALIZAR Y REGISTRAR
                         </button>
                     </div>
+
+                    
+
+
                 </div>
             </div>
         </div>

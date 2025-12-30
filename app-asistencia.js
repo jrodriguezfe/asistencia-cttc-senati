@@ -42,7 +42,9 @@ async function startSession() {
         nombre: docenteNombre,
         inicio: firebase.firestore.FieldValue.serverTimestamp(),
         estado: "activo",
-        actividad: "",
+        nombreCurso: "", 
+        nrc: "",
+        temaDictado: "",
         urlEvidencia: ""
     };
 
@@ -59,25 +61,58 @@ async function startSession() {
 }
 
 async function endSession() {
-    const actividad = document.getElementById('actividad-input').value;
-    const evidencia = document.getElementById('evidencia-input').value;
+    // Captura de campos obligatorios
+    const cursoInput = document.getElementById('curso-input');
+    const nrcInput = document.getElementById('nrc-input');
+    const temaInput = document.getElementById('tema-input');
 
-    if (!actividad) return alert("Por favor, describe la actividad realizada.");
+    // Validación de existencia de elementos para evitar errores en consola
+    if (!cursoInput || !nrcInput || !temaInput) {
+        return alert("Error técnico: No se encuentran los campos en el HTML. Por favor, limpia la caché (Ctrl+F5).");
+    }
+
+    const curso = cursoInput.value;
+    const nrc = nrcInput.value;
+    const tema = temaInput.value;
+
+    if (!curso || !nrc || !tema) {
+        return alert("Por favor, complete los campos obligatorios (Curso, NRC y Tema).");
+    }
 
     const endTime = new Date();
     const diffHrs = ((endTime - startTime) / (1000 * 60 * 60)).toFixed(2);
 
-    await db.collection('asistencias').doc(currentAsistenciaId).update({
+    // Preparar el objeto de datos con validaciones de existencia (?.value)
+    const datosRegistro = {
         fin: firebase.firestore.FieldValue.serverTimestamp(),
         horasTotales: parseFloat(diffHrs),
-        actividad: actividad,
-        urlEvidencia: evidencia,
+        nombreCurso: curso,
+        nrc: nrc,
+        numeroSesion: document.getElementById('sesion-input')?.value || "",
+        modalidad: document.getElementById('modalidad-input')?.value || "Presencial",
+        temaDictado: tema,
+        // Si el campo comentarios no existe en el HTML, guarda vacío en lugar de dar error
+        comentarios: document.getElementById('comentarios-input')?.value || "",
+        checklist: {
+            planSesion: document.getElementById('chk-plan')?.checked || false,
+            asistenciaBB: document.getElementById('chk-asistencia')?.checked || false,
+            fechasBB: document.getElementById('chk-fechas')?.checked || false,
+            objetivosSesion: document.getElementById('chk-objetivos')?.checked || false,
+            grabacionSesion: document.getElementById('chk-grabacion')?.checked || false,
+            retroalimentacionBB: document.getElementById('chk-retro')?.checked || false
+        },
         estado: "finalizado"
-    });
+    };
 
-    clearInterval(timerInterval);
-    alert(`Jornada finalizada: ${diffHrs} horas registradas.`);
-    location.reload();
+    try {
+        await db.collection('asistencias').doc(currentAsistenciaId).update(datosRegistro);
+        clearInterval(timerInterval);
+        alert(`Jornada finalizada: ${diffHrs} horas registradas para el curso ${curso}.`);
+        location.reload();
+    } catch (error) {
+        console.error("Error al guardar:", error);
+        alert("Error al registrar la sesión: " + error.message);
+    }
 }
 
 function iniciarCronometro() {
@@ -96,35 +131,46 @@ function cargarReporteAsistencias() {
     const container = document.getElementById('tabla-reportes-body');
     if (!container) return;
 
-    // Obtener valores de los filtros
     const filtroNombre = document.getElementById('filtro-nombre').value.toLowerCase();
     const filtroDesde = document.getElementById('filtro-desde').value;
     const filtroHasta = document.getElementById('filtro-hasta').value;
 
     db.collection('asistencias').orderBy('inicio', 'desc').get().then(snapshot => {
         let html = '';
-        let suma = 0;
+        let sumaTotal = 0;
 
         snapshot.forEach(doc => {
             const a = doc.data();
             if (a.estado === "finalizado") {
                 const fechaObj = a.inicio ? a.inicio.toDate() : null;
-                const fechaStr = fechaObj ? fechaObj.toLocaleDateString() : '---';
                 const fechaISO = fechaObj ? fechaObj.toISOString().split('T')[0] : '';
                 
-                // Lógica de Filtrado
+                // Filtros
                 let cumpleNombre = a.nombre.toLowerCase().includes(filtroNombre);
                 let cumpleDesde = filtroDesde ? (fechaISO >= filtroDesde) : true;
                 let cumpleHasta = filtroHasta ? (fechaISO <= filtroHasta) : true;
 
                 if (cumpleNombre && cumpleDesde && cumpleHasta) {
-                    suma += a.horasTotales;
+                    sumaTotal += a.horasTotales;
+                    
+                    // Lógica para mostrar los checks rápidos
+                    const checks = a.checklist || {};
+                    const totalChecks = Object.values(checks).filter(v => v === true).length;
+                    
                     html += `<tr>
-                        <td>${fechaStr}</td>
+                        <td>${fechaObj ? fechaObj.toLocaleDateString() : '---'}</td>
                         <td><strong>${a.nombre}</strong></td>
-                        <td>${a.actividad}</td>
+                        <td>
+                            <small class="d-block fw-bold">${a.nombreCurso || 'N/A'}</small>
+                            <span class="badge bg-secondary">NRC: ${a.nrc || '---'}</span>
+                        </td>
+                        <td>${a.temaDictado || a.actividad || '---'}</td>
                         <td><span class="badge bg-success">${a.horasTotales.toFixed(2)}</span></td>
-                        <td>${a.urlEvidencia ? `<a href="${a.urlEvidencia}" target="_blank">Link</a>` : '---'}</td>
+                        <td>
+                            <span class="text-primary fw-bold">${totalChecks}/6</span> 
+                            <i class="bi bi-patch-check-fill text-primary"></i>
+                        </td>
+                        <td>${a.urlEvidencia ? `<a href="${a.urlEvidencia}" target="_blank" class="btn btn-sm btn-link">Ver</a>` : '---'}</td>
                         <td>
                             <button class="btn btn-sm btn-outline-danger" onclick="eliminarAsistencia('${doc.id}')">
                                 <i class="bi bi-trash"></i>
@@ -135,9 +181,10 @@ function cargarReporteAsistencias() {
             }
         });
         container.innerHTML = html;
-        document.getElementById('total-horas-acumuladas').innerText = suma.toFixed(2);
+        document.getElementById('total-horas-acumuladas').innerText = sumaTotal.toFixed(2);
     });
 }
+
 
 function limpiarFiltros() {
     document.getElementById('filtro-nombre').value = '';
@@ -148,15 +195,27 @@ function limpiarFiltros() {
 
 function exportarExcel() {
     const rows = document.querySelectorAll("#tabla-reportes-body tr");
-    let csv = "\ufeffFecha;Docente;Actividad;Horas;Evidencia\n";
+    // Cabecera actualizada
+    let csv = "\ufeffFecha;Docente;Curso;NRC;Tema;Horas;Cumplimiento\n";
+    
     rows.forEach(row => {
         const cols = row.querySelectorAll("td");
-        csv += Array.from(cols).map(c => `"${c.innerText}"`).join(";") + "\n";
+        // Extraemos el texto limpio de cada celda
+        const fecha = cols[0].innerText;
+        const docente = cols[1].innerText;
+        const curso = cols[2].querySelector('small').innerText;
+        const nrc = cols[2].querySelector('span').innerText.replace('NRC: ', '');
+        const tema = cols[3].innerText;
+        const horas = cols[4].innerText;
+        const checks = cols[5].innerText;
+
+        csv += `"${fecha}";"${docente}";"${curso}";"${nrc}";"${tema}";"${horas}";"${checks}"\n`;
     });
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "Reporte_Horas_CTTC.csv";
+    link.download = `Reporte_Detallado_CTTC_${new Date().toLocaleDateString()}.csv`;
     link.click();
 }
 
