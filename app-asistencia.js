@@ -119,57 +119,57 @@ async function startSession() {
 
 
 async function endSession() {
-    // 1. Captura de datos (Curso, NRC, Tema, etc.)
-    const curso = document.getElementById('curso-input').value;
-    const nrc = document.getElementById('nrc-input').value;
-    const tema = document.getElementById('tema-input').value;
+    // Captura de campos obligatorios
+    const cursoInput = document.getElementById('curso-input');
+    const nrcInput = document.getElementById('nrc-input');
+    const temaInput = document.getElementById('tema-input');
+
+    // Validación de existencia de elementos para evitar errores en consola
+    if (!cursoInput || !nrcInput || !temaInput) {
+        return alert("Error técnico: No se encuentran los campos en el HTML. Por favor, limpia la caché (Ctrl+F5).");
+    }
+
+    const curso = cursoInput.value;
+    const nrc = nrcInput.value;
+    const tema = temaInput.value;
 
     if (!curso || !nrc || !tema) {
-        return alert("Por favor, complete los campos obligatorios antes de finalizar.");
+        return alert("Por favor, complete los campos obligatorios (Curso, NRC y Tema).");
     }
 
     const endTime = new Date();
     const diffHrs = ((endTime - startTime) / (1000 * 60 * 60)).toFixed(2);
 
+    // Preparar el objeto de datos con validaciones de existencia (?.value)
     const datosRegistro = {
         fin: firebase.firestore.FieldValue.serverTimestamp(),
         horasTotales: parseFloat(diffHrs),
         nombreCurso: curso,
         nrc: nrc,
+        numeroSesion: document.getElementById('sesion-input')?.value || "",
+        modalidad: document.getElementById('modalidad-input')?.value || "Presencial",
         temaDictado: tema,
+        // Si el campo comentarios no existe en el HTML, guarda vacío en lugar de dar error
         comentarios: document.getElementById('comentarios-input')?.value || "",
         checklist: {
-            planSesion: document.getElementById('chk-plan').checked,
-            asistenciaBB: document.getElementById('chk-asistencia').checked,
-            // ... resto del checklist
+            planSesion: document.getElementById('chk-plan')?.checked || false,
+            asistenciaBB: document.getElementById('chk-asistencia')?.checked || false,
+            fechasBB: document.getElementById('chk-fechas')?.checked || false,
+            objetivosSesion: document.getElementById('chk-objetivos')?.checked || false,
+            grabacionSesion: document.getElementById('chk-grabacion')?.checked || false,
+            retroalimentacionBB: document.getElementById('chk-retro')?.checked || false
         },
         estado: "finalizado"
-    }
+    };
 
     try {
-        // 2. Guardar en Firebase
         await db.collection('asistencias').doc(currentAsistenciaId).update(datosRegistro);
         
-        // 3. DETENER CRONÓMETRO Y LIMPIAR INTERFAZ
-        clearInterval(timerInterval); // Detiene el contador
-        timerInterval = null;
-        
-        alert(`Sesión finalizada: ${diffHrs} hrs registradas.`);
-
-        // 4. RESETEAR BOTONES
-        document.getElementById('end-zone').style.display = 'none';
-        document.getElementById('start-zone').style.display = 'block';
-        document.getElementById('timer-display').innerText = "00:00:00";
-        document.getElementById('timer-display').classList.remove('text-success');
-
-        // Limpiar campos del formulario
-        document.getElementById('curso-input').value = "";
-        document.getElementById('nrc-input').value = "";
-        document.getElementById('tema-input').value = "";
-
+        clearInterval(timerInterval);
+        alert("Jornada guardada y sincronizada en todos tus dispositivos.");
+        location.reload(); 
     } catch (error) {
-        console.error("Error al finalizar:", error);
-        alert("Error al registrar la sesión.");
+        alert("Error al finalizar: " + error.message);
     }
 }
 
@@ -189,53 +189,67 @@ function cargarReporteAsistencias() {
     const container = document.getElementById('tabla-reportes-body');
     if (!container) return;
 
+    // 1. Captura de todos los filtros (Asegúrate de tener el input 'filtro-nrc' en tu HTML)
     const filtroNombre = document.getElementById('filtro-nombre').value.toLowerCase();
+    const filtroNRC = document.getElementById('filtro-nrc')?.value || ""; 
     const filtroDesde = document.getElementById('filtro-desde').value;
     const filtroHasta = document.getElementById('filtro-hasta').value;
 
     db.collection('asistencias').orderBy('inicio', 'desc').get().then(snapshot => {
         let html = '';
         let sumaTotal = 0;
+        
+        // Variables para el gráfico (opcional)
+        let sesionesCompletas = 0;
+        let sesionesIncompletas = 0;
 
         snapshot.forEach(doc => {
             const a = doc.data();
-            
-            // Considerar ambos estados de finalización
+            const id = doc.id;
+
+            // 2. Considerar estados de finalización manual y automática
             if (a.estado === "finalizado" || a.estado === "finalizado_auto") {
                 const fechaObj = a.inicio ? a.inicio.toDate() : null;
                 const fechaISO = fechaObj ? fechaObj.toISOString().split('T')[0] : '';
                 
+                // 3. Aplicación de Filtros
                 let cumpleNombre = a.nombre.toLowerCase().includes(filtroNombre);
+                let cumpleNRC = filtroNRC === "" || (a.nrc && a.nrc.includes(filtroNRC));
                 let cumpleDesde = filtroDesde ? (fechaISO >= filtroDesde) : true;
                 let cumpleHasta = filtroHasta ? (fechaISO <= filtroHasta) : true;
 
-                if (cumpleNombre && cumpleDesde && cumpleHasta) {
+                if (cumpleNombre && cumpleNRC && cumpleDesde && cumpleHasta) {
                     sumaTotal += a.horasTotales;
                     
-                    // --- MEJORA VISUAL PARA CIERRE AUTOMÁTICO ---
-                    // Pintamos la fila de amarillo si fue cierre automático por la regla de 8h
+                    const checks = a.checklist || {};
+                    const totalChecks = Object.values(checks).filter(v => v === true).length;
+                    if(totalChecks === 6) sesionesCompletas++; else sesionesIncompletas++;
+
+                    // 4. Lógica Visual para Discrepancias y Cierres Auto
                     const claseFila = a.estado === "finalizado_auto" ? "table-warning" : "";
-                    const iconoAlerta = a.estado === "finalizado_auto" ? 
-                        '<i class="bi bi-exclamation-triangle-fill text-danger ms-1" title="Cierre automático (Límite 8h)"></i>' : "";
+                    const badgeAlerta = a.estado === "finalizado_auto" ? 
+                        '<i class="bi bi-exclamation-triangle-fill text-danger" title="Cierre Automático (8h)"></i>' : "";
 
                     html += `<tr class="${claseFila}">
                         <td>${fechaObj ? fechaObj.toLocaleDateString() : '---'}</td>
-                        <td><strong>${a.nombre}</strong> ${iconoAlerta}</td>
+                        <td><strong>${a.nombre}</strong> ${badgeAlerta}</td>
                         <td>
                             <small class="d-block fw-bold">${a.nombreCurso || 'N/A'}</small>
                             <span class="badge bg-secondary">NRC: ${a.nrc || '---'}</span>
+                            ${a.comentariosEdit ? `<div class="text-danger small mt-1" style="font-size:0.75rem"><strong>Ajuste:</strong> ${a.comentariosEdit}</div>` : ''}
                         </td>
+                        <td>${a.temaDictado || '---'}</td>
+                        <td class="fw-bold text-primary">${a.horasTotales.toFixed(2)}</td>
                         <td>
-                            <div class="small"><strong>Tema:</strong> ${a.temaDictado || '---'}</div>
-                            <div class="text-muted small" style="font-size: 0.75rem;">${a.comentarios || ''}</div>
+                            <span class="${totalChecks === 6 ? 'text-success' : 'text-muted'} fw-bold">${totalChecks}/6</span> 
+                            <i class="bi bi-patch-check-fill ${totalChecks === 6 ? 'text-success' : 'text-light'}"></i>
                         </td>
-                        <td><span class="badge bg-success">${a.horasTotales.toFixed(2)}</span></td>
-                        <td>
-                            <span class="text-primary fw-bold">${Object.values(a.checklist || {}).filter(v => v === true).length}/6</span>
-                        </td>
-                        <td>${a.urlEvidencia ? `<a href="${a.urlEvidencia}" target="_blank" class="btn btn-sm btn-link">Ver</a>` : '---'}</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-danger" onclick="eliminarAsistencia('${doc.id}')">
+                        <td>${a.urlEvidencia ? `<a href="${a.urlEvidencia}" target="_blank" class="btn btn-sm btn-link p-0">Ver</a>` : '---'}</td>
+                        <td class="text-nowrap">
+                            <button class="btn btn-sm btn-warning" onclick="abrirModalEdicion('${id}', ${a.horasTotales}, '${a.comentariosEdit || ''}')">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="eliminarAsistencia('${id}')">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </td>
@@ -243,8 +257,17 @@ function cargarReporteAsistencias() {
                 }
             }
         });
+
         container.innerHTML = html;
         document.getElementById('total-horas-acumuladas').innerText = sumaTotal.toFixed(2);
+        
+        // Actualizar contador grande y gráfico si los tienes
+        if(document.getElementById('total-horas-grande')) {
+            document.getElementById('total-horas-grande').innerText = sumaTotal.toFixed(2);
+        }
+        if(typeof actualizarGrafico === "function") {
+            actualizarGrafico(sesionesCompletas, sesionesIncompletas);
+        }
     });
 }
 
