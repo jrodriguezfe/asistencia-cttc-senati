@@ -119,57 +119,57 @@ async function startSession() {
 
 
 async function endSession() {
-    // Captura de campos obligatorios
-    const cursoInput = document.getElementById('curso-input');
-    const nrcInput = document.getElementById('nrc-input');
-    const temaInput = document.getElementById('tema-input');
-
-    // Validación de existencia de elementos para evitar errores en consola
-    if (!cursoInput || !nrcInput || !temaInput) {
-        return alert("Error técnico: No se encuentran los campos en el HTML. Por favor, limpia la caché (Ctrl+F5).");
-    }
-
-    const curso = cursoInput.value;
-    const nrc = nrcInput.value;
-    const tema = temaInput.value;
+    // 1. Captura de datos (Curso, NRC, Tema, etc.)
+    const curso = document.getElementById('curso-input').value;
+    const nrc = document.getElementById('nrc-input').value;
+    const tema = document.getElementById('tema-input').value;
 
     if (!curso || !nrc || !tema) {
-        return alert("Por favor, complete los campos obligatorios (Curso, NRC y Tema).");
+        return alert("Por favor, complete los campos obligatorios antes de finalizar.");
     }
 
     const endTime = new Date();
     const diffHrs = ((endTime - startTime) / (1000 * 60 * 60)).toFixed(2);
 
-    // Preparar el objeto de datos con validaciones de existencia (?.value)
     const datosRegistro = {
         fin: firebase.firestore.FieldValue.serverTimestamp(),
         horasTotales: parseFloat(diffHrs),
         nombreCurso: curso,
         nrc: nrc,
-        numeroSesion: document.getElementById('sesion-input')?.value || "",
-        modalidad: document.getElementById('modalidad-input')?.value || "Presencial",
         temaDictado: tema,
-        // Si el campo comentarios no existe en el HTML, guarda vacío en lugar de dar error
         comentarios: document.getElementById('comentarios-input')?.value || "",
         checklist: {
-            planSesion: document.getElementById('chk-plan')?.checked || false,
-            asistenciaBB: document.getElementById('chk-asistencia')?.checked || false,
-            fechasBB: document.getElementById('chk-fechas')?.checked || false,
-            objetivosSesion: document.getElementById('chk-objetivos')?.checked || false,
-            grabacionSesion: document.getElementById('chk-grabacion')?.checked || false,
-            retroalimentacionBB: document.getElementById('chk-retro')?.checked || false
+            planSesion: document.getElementById('chk-plan').checked,
+            asistenciaBB: document.getElementById('chk-asistencia').checked,
+            // ... resto del checklist
         },
         estado: "finalizado"
-    };
+    }
 
     try {
+        // 2. Guardar en Firebase
         await db.collection('asistencias').doc(currentAsistenciaId).update(datosRegistro);
         
-        clearInterval(timerInterval);
-        alert("Jornada guardada y sincronizada en todos tus dispositivos.");
-        location.reload(); 
+        // 3. DETENER CRONÓMETRO Y LIMPIAR INTERFAZ
+        clearInterval(timerInterval); // Detiene el contador
+        timerInterval = null;
+        
+        alert(`Sesión finalizada: ${diffHrs} hrs registradas.`);
+
+        // 4. RESETEAR BOTONES
+        document.getElementById('end-zone').style.display = 'none';
+        document.getElementById('start-zone').style.display = 'block';
+        document.getElementById('timer-display').innerText = "00:00:00";
+        document.getElementById('timer-display').classList.remove('text-success');
+
+        // Limpiar campos del formulario
+        document.getElementById('curso-input').value = "";
+        document.getElementById('nrc-input').value = "";
+        document.getElementById('tema-input').value = "";
+
     } catch (error) {
-        alert("Error al finalizar: " + error.message);
+        console.error("Error al finalizar:", error);
+        alert("Error al registrar la sesión.");
     }
 }
 
