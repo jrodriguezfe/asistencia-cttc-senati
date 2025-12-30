@@ -26,15 +26,71 @@ console.log("Datos recibidos:", { docenteUID, docenteNombre });
 
 
 
-document.addEventListener('DOMContentLoaded', () => {
+// 1. RECUPERACIÓN AUTOMÁTICA AL CARGAR LA PÁGINA
+document.addEventListener('DOMContentLoaded', async () => {
     if (document.getElementById('welcome-msg')) {
         document.getElementById('welcome-msg').innerText = `Hola, ${docenteNombre}`;
     }
+
+    if (!docenteUID) return;
+
+    try {
+        const snapshot = await db.collection('asistencias')
+            .where("uid", "==", docenteUID)
+            .where("estado", "==", "activo")
+            .limit(1)
+            .get();
+
+        if (!snapshot.empty) {
+            const docActivo = snapshot.docs[0];
+            const data = docActivo.data();
+            const idDoc = docActivo.id;
+            
+            // 1. Calcular tiempo transcurrido
+            const ahora = new Date();
+            const inicio = data.inicio.toDate();
+            const diferenciaHoras = (ahora - inicio) / (1000 * 60 * 60);
+
+            // 2. APLICAR REGLA DE LAS 8 HORAS
+            if (diferenciaHoras >= 8) {
+                console.log("Sesión excedió las 8 horas. Finalizando automáticamente...");
+                
+                await db.collection('asistencias').doc(idDoc).update({
+                    fin: firebase.firestore.FieldValue.serverTimestamp(),
+                    horasTotales: 8.00, // Se castiga o limita a 8 horas
+                    estado: "finalizado_auto",
+                    comentarios: (data.comentarios || "") + " [CIERRE AUTOMÁTICO POR EXCESO DE TIEMPO]"
+                });
+
+                alert("Tenías una sesión abierta de hace más de 8 horas. Se ha cerrado automáticamente con el límite de tiempo permitido.");
+                location.reload();
+                return;
+            }
+
+            // 3. Si es menor a 8 horas, recuperar normalmente
+            currentAsistenciaId = idDoc;
+            startTime = inicio;
+            
+            document.getElementById('start-zone').style.display = 'none';
+            document.getElementById('end-zone').style.display = 'block';
+            iniciarCronometro();
+            
+            // Aviso visual de sincronización
+            const timerDisplay = document.getElementById('timer-display');
+            timerDisplay.classList.add('text-success');
+            console.log("Sesión sincronizada desde la nube.");
+        }
+    } catch (error) {
+        console.error("Error en la sincronización:", error);
+    }
 });
 
+
+
 // FUNCIONES DE MARCACIÓN
+// 2. INICIO DE JORNADA (No cambia mucho, pero Firebase ya guarda el 'inicio')
 async function startSession() {
-    if (!docenteUID) return alert("Error: No se detectó identidad del docente.");
+    if (!docenteUID) return alert("Error: Identidad no detectada.");
     
     startTime = new Date();
     const nuevaAsistencia = {
@@ -42,10 +98,9 @@ async function startSession() {
         nombre: docenteNombre,
         inicio: firebase.firestore.FieldValue.serverTimestamp(),
         estado: "activo",
-        nombreCurso: "", 
+        nombreCurso: "",
         nrc: "",
-        temaDictado: "",
-        urlEvidencia: ""
+        temaDictado: ""
     };
 
     try {
@@ -56,9 +111,12 @@ async function startSession() {
         document.getElementById('end-zone').style.display = 'block';
         
         iniciarCronometro();
-    } catch (e) { console.error("Detalle del error:", e);
-        alert("Error al iniciar jornada: " + e.message);}
+    } catch (e) { 
+        console.error("Error al iniciar:", e);
+        alert("No se pudo iniciar la jornada.");
+    }
 }
+
 
 async function endSession() {
     // Captura de campos obligatorios
@@ -106,12 +164,12 @@ async function endSession() {
 
     try {
         await db.collection('asistencias').doc(currentAsistenciaId).update(datosRegistro);
+        
         clearInterval(timerInterval);
-        alert(`Jornada finalizada: ${diffHrs} horas registradas para el curso ${curso}.`);
-        location.reload();
+        alert("Jornada guardada y sincronizada en todos tus dispositivos.");
+        location.reload(); 
     } catch (error) {
-        console.error("Error al guardar:", error);
-        alert("Error al registrar la sesión: " + error.message);
+        alert("Error al finalizar: " + error.message);
     }
 }
 
@@ -141,11 +199,12 @@ function cargarReporteAsistencias() {
 
         snapshot.forEach(doc => {
             const a = doc.data();
-            if (a.estado === "finalizado") {
+            
+            // Considerar ambos estados de finalización
+            if (a.estado === "finalizado" || a.estado === "finalizado_auto") {
                 const fechaObj = a.inicio ? a.inicio.toDate() : null;
                 const fechaISO = fechaObj ? fechaObj.toISOString().split('T')[0] : '';
                 
-                // Filtros
                 let cumpleNombre = a.nombre.toLowerCase().includes(filtroNombre);
                 let cumpleDesde = filtroDesde ? (fechaISO >= filtroDesde) : true;
                 let cumpleHasta = filtroHasta ? (fechaISO <= filtroHasta) : true;
@@ -153,22 +212,26 @@ function cargarReporteAsistencias() {
                 if (cumpleNombre && cumpleDesde && cumpleHasta) {
                     sumaTotal += a.horasTotales;
                     
-                    // Lógica para mostrar los checks rápidos
-                    const checks = a.checklist || {};
-                    const totalChecks = Object.values(checks).filter(v => v === true).length;
-                    
-                    html += `<tr>
+                    // --- MEJORA VISUAL PARA CIERRE AUTOMÁTICO ---
+                    // Pintamos la fila de amarillo si fue cierre automático por la regla de 8h
+                    const claseFila = a.estado === "finalizado_auto" ? "table-warning" : "";
+                    const iconoAlerta = a.estado === "finalizado_auto" ? 
+                        '<i class="bi bi-exclamation-triangle-fill text-danger ms-1" title="Cierre automático (Límite 8h)"></i>' : "";
+
+                    html += `<tr class="${claseFila}">
                         <td>${fechaObj ? fechaObj.toLocaleDateString() : '---'}</td>
-                        <td><strong>${a.nombre}</strong></td>
+                        <td><strong>${a.nombre}</strong> ${iconoAlerta}</td>
                         <td>
                             <small class="d-block fw-bold">${a.nombreCurso || 'N/A'}</small>
                             <span class="badge bg-secondary">NRC: ${a.nrc || '---'}</span>
                         </td>
-                        <td>${a.temaDictado || a.actividad || '---'}</td>
+                        <td>
+                            <div class="small"><strong>Tema:</strong> ${a.temaDictado || '---'}</div>
+                            <div class="text-muted small" style="font-size: 0.75rem;">${a.comentarios || ''}</div>
+                        </td>
                         <td><span class="badge bg-success">${a.horasTotales.toFixed(2)}</span></td>
                         <td>
-                            <span class="text-primary fw-bold">${totalChecks}/6</span> 
-                            <i class="bi bi-patch-check-fill text-primary"></i>
+                            <span class="text-primary fw-bold">${Object.values(a.checklist || {}).filter(v => v === true).length}/6</span>
                         </td>
                         <td>${a.urlEvidencia ? `<a href="${a.urlEvidencia}" target="_blank" class="btn btn-sm btn-link">Ver</a>` : '---'}</td>
                         <td>
