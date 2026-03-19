@@ -10,6 +10,7 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
 
 let timerInterval;
 let startTime;
@@ -370,6 +371,11 @@ function exportarExcel() {
 }
 
 async function eliminarAsistencia(id) {
+    // Verificar si el usuario actual es un administrador logeado
+    if (!auth.currentUser) {
+        return alert("Acceso denegado. Solo los administradores pueden eliminar registros.");
+    }
+
     if (confirm("¿Estás seguro de que deseas eliminar este registro de asistencia?")) {
         try {
             await db.collection('asistencias').doc(id).delete();
@@ -466,6 +472,11 @@ function abrirModalEdicion(id) {
 }
 
 async function guardarEdicionHora() {
+    // Verificar si el usuario actual es un administrador logeado
+    if (!auth.currentUser) {
+        return alert("Acceso denegado. Solo los administradores pueden editar registros.");
+    }
+
     const id = document.getElementById('edit-id').value;
     const horas = parseFloat(document.getElementById('edit-horas').value);
     const motivo = document.getElementById('edit-motivo').value;
@@ -607,4 +618,43 @@ function exportarMatrizExcel() {
     link.href = URL.createObjectURL(blob);
     link.download = `Matriz_Asistencia_Docentes_${new Date().toLocaleDateString()}.csv`;
     link.click();
+}
+
+// --- AUTENTICACIÓN DEL ADMINISTRADOR ---
+
+auth.onAuthStateChanged(user => {
+    const loginContainer = document.getElementById('login-container');
+    const dashboardContainer = document.getElementById('dashboard-container');
+    
+    // Verificamos si estamos en admin.html (donde existen estos contenedores)
+    if (loginContainer && dashboardContainer) {
+        if (user) {
+            loginContainer.style.display = 'none';
+            dashboardContainer.style.display = 'block';
+            cargarReporteAsistencias(); // Solo cargamos los datos si inició sesión
+        } else {
+            loginContainer.style.display = 'block';
+            dashboardContainer.style.display = 'none';
+        }
+    }
+});
+
+async function loginAdmin(e) {
+    e.preventDefault();
+    const email = document.getElementById('admin-email').value;
+    const pass = document.getElementById('admin-password').value;
+    const errorMsg = document.getElementById('login-error');
+    
+    try {
+        await auth.signInWithEmailAndPassword(email, pass);
+        errorMsg.style.display = 'none';
+    } catch (error) {
+        console.error("Error de login:", error);
+        errorMsg.style.display = 'block';
+        errorMsg.innerText = "Correo o contraseña incorrectos.";
+    }
+}
+
+function logoutAdmin() {
+    auth.signOut();
 }

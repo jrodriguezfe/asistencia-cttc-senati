@@ -13,14 +13,35 @@
 
 <body class="bg-light">
 
-    <div class="container py-5">
+    <!-- PANTALLA DE LOGIN -->
+    <div id="login-container" class="container py-5" style="max-width: 400px; margin-top: 10vh; display: none;">
+        <div class="card shadow-sm border-0 p-4 text-center">
+            <h3 class="fw-bold mb-4 text-principal"><i class="bi bi-shield-lock text-success"></i> Acceso Admin</h3>
+            <form id="login-form" onsubmit="loginAdmin(event)">
+                <div class="mb-3">
+                    <input type="email" id="admin-email" class="form-control" placeholder="Correo electrónico" required>
+                </div>
+                <div class="mb-3">
+                    <input type="password" id="admin-password" class="form-control" placeholder="Contraseña" required>
+                </div>
+                <button type="submit" class="btn btn-success w-100 fw-bold">Ingresar</button>
+                <div id="login-error" class="text-danger mt-2 small fw-bold" style="display: none;">Credenciales incorrectas</div>
+            </form>
+        </div>
+    </div>
+
+    <!-- PANEL DE ADMINISTRADOR (Oculto hasta iniciar sesión) -->
+    <div id="dashboard-container" class="container py-5" style="display: none;">
         <div class="card shadow-sm border-0 p-4">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="fw-bold text-principal"><i class="bi bi-file-earmark-bar-graph"></i> Reporte de Horas</h2>
                 <div>
                     <button class="btn btn-outline-secondary me-2" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i></button>
-                    <button class="btn btn-success fw-bold" onclick="exportarExcel()">
+                    <button class="btn btn-success fw-bold me-2" onclick="exportarExcel()">
                         <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+                    </button>
+                    <button class="btn btn-outline-danger fw-bold" onclick="logoutAdmin()">
+                        <i class="bi bi-box-arrow-right"></i> Salir
                     </button>
                 </div>
             </div>
@@ -157,12 +178,9 @@
 
     
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="app-asistencia.js"></script>
-    <script>
-        // Cargar reportes automáticamente al abrir esta página
-        document.addEventListener('DOMContentLoaded', cargarReporteAsistencias);
-    </script>
 </body>
 </html>
