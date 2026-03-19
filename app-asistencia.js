@@ -232,6 +232,7 @@ function cargarReporteAsistencias() {
         let sesionesIncompletas = 0;
         
         let registrosMatriz = []; // Almacenará datos para el cuadro de doble entrada
+        window.datosEdicion = {}; // Guardar en memoria local para evitar consultas extra en Firebase
 
         snapshot.forEach(doc => {
             const a = doc.data();
@@ -250,6 +251,9 @@ function cargarReporteAsistencias() {
 
                 if (cumpleNombre && cumpleNRC && cumpleDesde && cumpleHasta) {
                     sumaTotal += a.horasTotales;
+                    
+                    // Almacenamos los datos para edición local instantánea
+                    window.datosEdicion[id] = { horas: a.horasTotales, motivo: a.comentariosEdit || '' };
                     
                     const checks = a.checklist || {};
                     const totalChecks = Object.values(checks).filter(v => v === true).length;
@@ -277,7 +281,7 @@ function cargarReporteAsistencias() {
                             <i class="bi bi-patch-check-fill ${totalChecks === 6 ? 'text-success' : 'text-light'}"></i>
                         </td>
                         <td class="text-nowrap">
-                            <button class="btn btn-sm btn-warning" onclick="abrirModalEdicion('${id}', ${a.horasTotales}, '${a.comentariosEdit || ''}')">
+                            <button class="btn btn-sm btn-warning" onclick="abrirModalEdicion('${id}')">
                                 <i class="bi bi-pencil-square"></i>
                             </button>
                             <button class="btn btn-sm btn-outline-danger" onclick="eliminarAsistencia('${id}')">
@@ -444,10 +448,16 @@ function exportarCierreExcel() {
 
 // --- FUNCIONES PARA EDITAR HORAS ---
 
-function abrirModalEdicion(id, horas, motivo) {
+function abrirModalEdicion(id) {
+    const data = window.datosEdicion && window.datosEdicion[id];
+    if (!data) {
+        alert("No se encontró la información local del registro. Por favor, recarga la página.");
+        return;
+    }
+
     document.getElementById('edit-id').value = id;
-    document.getElementById('edit-horas').value = horas;
-    document.getElementById('edit-motivo').value = motivo !== 'undefined' ? motivo : '';
+    document.getElementById('edit-horas').value = data.horas || 0;
+    document.getElementById('edit-motivo').value = data.motivo || '';
     
     // Abrir el modal usando la API de Bootstrap
     const modalElement = document.getElementById('modalEditarHora');
