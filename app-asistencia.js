@@ -263,6 +263,8 @@ function cargarReporteAsistencias() {
                     html += `<tr class="${claseFila}">
                         <td>${fechaObj ? fechaObj.toLocaleDateString() : '---'}</td>
                         <td><strong>${a.nombre}</strong> ${badgeAlerta}</td>
+                        <td>${a.id_docente || 'S/N'}</td>
+                        <td>${a.dni || 'S/N'}</td>
                         <td>
                             <small class="d-block fw-bold">${a.nombreCurso || 'N/A'}</small>
                             <span class="badge bg-secondary">NRC: ${a.nrc || '---'}</span>
@@ -293,6 +295,8 @@ function cargarReporteAsistencias() {
                     registrosMatriz.push({
                         nombre: a.nombre,
                         uid: a.uid || "S/N",
+                        id_docente: a.id_docente || "S/N",
+                        dni: a.dni || "S/N",
                         fechaObj: fechaObj,
                         horas: a.horasTotales,
                         modalidad: a.modalidad || "Presencial"
@@ -333,20 +337,25 @@ function limpiarFiltrosMatriz() {
 function exportarExcel() {
     const rows = document.querySelectorAll("#tabla-reportes-body tr");
     // Cabecera actualizada
-    let csv = "\ufeffFecha;Docente;Curso;NRC;Tema;Horas;Cumplimiento\n";
+    let csv = "\ufeffFecha;Docente;ID;DNI;Curso;NRC;Tema;Horas;Cumplimiento\n";
     
     rows.forEach(row => {
         const cols = row.querySelectorAll("td");
         // Extraemos el texto limpio de cada celda
         const fecha = cols[0].innerText;
-        const docente = cols[1].innerText;
-        const curso = cols[2].querySelector('small').innerText;
-        const nrc = cols[2].querySelector('span').innerText.replace('NRC: ', '');
-        const tema = cols[3].innerText;
-        const horas = cols[4].innerText;
-        const checks = cols[5].innerText;
+        
+        const docenteNombreEl = cols[1].querySelector('strong');
+        const docente = docenteNombreEl ? docenteNombreEl.innerText.trim() : cols[1].innerText.trim();
+        const idDocente = cols[2].innerText.trim();
+        const dniDocente = cols[3].innerText.trim();
+        
+        const curso = cols[4].querySelector('small').innerText;
+        const nrc = cols[4].querySelector('span').innerText.replace('NRC: ', '');
+        const tema = cols[5].innerText;
+        const horas = cols[6].innerText;
+        const checks = cols[7].innerText;
 
-        csv += `"${fecha}";"${docente}";"${curso}";"${nrc}";"${tema}";"${horas}";"${checks}"\n`;
+        csv += `"${fecha}";"${docente}";"${idDocente}";"${dniDocente}";"${curso}";"${nrc}";"${tema}";"${horas}";"${checks}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -380,8 +389,9 @@ function generarReporteCierreMes() {
 
     // Agrupar horas por docente
     filas.forEach(fila => {
-        const nombre = fila.cells[1].innerText;
-        const horas = parseFloat(fila.cells[3].innerText) || 0;
+        const docenteNombreEl = fila.cells[1].querySelector('strong');
+        const nombre = docenteNombreEl ? docenteNombreEl.innerText.trim() : fila.cells[1].innerText.split('\n')[0].trim();
+        const horas = parseFloat(fila.cells[6].innerText) || 0;
         
         if (resumen[nombre]) {
             resumen[nombre] += horas;
@@ -501,7 +511,7 @@ function renderizarMatriz(registros) {
         if (!r.fechaObj) return;
         const docId = r.uid;
         if (!docentes[docId]) {
-            docentes[docId] = { nombre: r.nombre, uid: r.uid, dias: {} };
+            docentes[docId] = { nombre: r.nombre, uid: r.uid, id_docente: r.id_docente, dni: r.dni, dias: {} };
         }
         
         const year = r.fechaObj.getFullYear();
@@ -523,11 +533,12 @@ function renderizarMatriz(registros) {
     let html = '<div class="table-responsive"><table class="table table-bordered table-hover align-middle text-center" id="tabla-datos-matriz"><thead class="table-dark">';
     
     // Primera fila (Docentes y Fechas)
-    html += '<tr><th rowspan="2" class="align-middle">Docente</th><th rowspan="2" class="align-middle">ID / DNI</th>';
+    html += '<tr><th rowspan="2" class="align-middle">Docente</th><th rowspan="2" class="align-middle">ID</th><th rowspan="2" class="align-middle">DNI</th>';
     fechas.forEach(f => {
         const partes = f.split('-'); // Formato corto: DD/MM
         html += `<th colspan="2">${partes[2]}/${partes[1]}</th>`;
     });
+    html += '<th rowspan="2" class="align-middle bg-secondary text-white">Total Horas</th>';
     html += '</tr><tr>';
     
     // Segunda fila (Columnas divididas en Horas y Modalidad)
@@ -538,10 +549,12 @@ function renderizarMatriz(registros) {
 
     // Llenar cuerpo por cada docente
     Object.values(docentes).forEach(d => {
-        html += `<tr><td class="text-start text-nowrap fw-bold">${d.nombre}</td><td>${d.uid}</td>`;
+        let totalHorasDocente = 0;
+        html += `<tr><td class="text-start text-nowrap fw-bold">${d.nombre}</td><td class="text-nowrap">${d.id_docente}</td><td class="text-nowrap">${d.dni}</td>`;
         fechas.forEach(f => {
             const dia = d.dias[f];
             if (dia) {
+                totalHorasDocente += dia.horas;
                 const mods = Array.from(dia.modalidades).join('/'); // si tuviera TP y TT en un día mostrará TP/TT
                 const badgeClass = mods.includes('TP') ? 'bg-success' : 'bg-info text-dark';
                 html += `<td>${dia.horas.toFixed(2)}</td><td><span class="badge ${badgeClass}">${mods}</span></td>`;
@@ -549,6 +562,7 @@ function renderizarMatriz(registros) {
                 html += '<td class="text-muted bg-light">-</td><td class="text-muted bg-light">-</td>';
             }
         });
+        html += `<td class="fw-bold bg-light text-primary">${totalHorasDocente.toFixed(2)}</td>`;
         html += '</tr>';
     });
 
@@ -567,7 +581,8 @@ function exportarMatrizExcel() {
         let rowData = [];
         const cols = row.querySelectorAll("th, td");
         cols.forEach(col => {
-            rowData.push(`"${col.innerText.trim()}"`);
+            const text = col.innerText.trim().replace(/\n/g, ' - ');
+            rowData.push(`"${text}"`);
             // Para compatibilizar el colspan con CSV, creamos columnas en blanco al lado
             if(col.hasAttribute("colspan")) {
                 const colspan = parseInt(col.getAttribute("colspan"));
