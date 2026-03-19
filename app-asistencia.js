@@ -143,37 +143,51 @@ async function startSession() {
 
 
 async function endSession() {
+    // 1. Verificación de seguridad de la sesión
+    if (!currentAsistenciaId) {
+        return alert("Error: No se encontró una sesión activa. Por favor, recarga la página.");
+    }
+
     // Captura de campos obligatorios
     const cursoInput = document.getElementById('curso-input');
     const nrcInput = document.getElementById('nrc-input');
     const temaInput = document.getElementById('tema-input');
 
-    // Validación de existencia de elementos para evitar errores en consola
     if (!cursoInput || !nrcInput || !temaInput) {
         return alert("Error técnico: No se encuentran los campos en el HTML. Por favor, limpia la caché (Ctrl+F5).");
     }
 
-    const curso = cursoInput.value;
-    const nrc = nrcInput.value;
-    const tema = temaInput.value;
+    const curso = cursoInput.value.trim();
+    const nrc = nrcInput.value.trim();
+    const tema = temaInput.value.trim();
 
     if (!curso || !nrc || !tema) {
-        return alert("Por favor, complete los campos obligatorios (Curso, NRC y Tema).");
+        return alert("⚠️ Por favor, complete los campos obligatorios (Curso, NRC y Tema) antes de finalizar.");
     }
 
-    const endTime = new Date();
-    const diffHrs = ((endTime - startTime) / (1000 * 60 * 60)).toFixed(2);
+    // 2. Deshabilitar el botón para evitar el "Doble Clic"
+    const btnFinalizar = document.querySelector('#end-zone .btn-danger');
+    if (btnFinalizar) {
+        btnFinalizar.disabled = true;
+        btnFinalizar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+    }
 
-    // Preparar el objeto de datos con validaciones de existencia (?.value)
+    // 3. Cálculo seguro de las horas
+    let horasCalculadas = 0;
+    if (startTime) {
+        const endTime = new Date();
+        const diffHrs = ((endTime - startTime) / (1000 * 60 * 60)).toFixed(2);
+        horasCalculadas = parseFloat(diffHrs) || 0;
+    }
+
     const datosRegistro = {
         fin: firebase.firestore.FieldValue.serverTimestamp(),
-        horasTotales: parseFloat(diffHrs),
+        horasTotales: horasCalculadas,
         nombreCurso: curso,
         nrc: nrc,
         numeroSesion: document.getElementById('sesion-input')?.value || "",
         modalidad: document.getElementById('modalidad-input')?.value || "Presencial",
         temaDictado: tema,
-        // Si el campo comentarios no existe en el HTML, guarda vacío en lugar de dar error
         comentarios: document.getElementById('comentarios-input')?.value || "",
         checklist: {
             planSesion: document.getElementById('chk-plan')?.checked || false,
@@ -191,10 +205,17 @@ async function endSession() {
         
         clearInterval(timerInterval);
         localStorage.removeItem('sesion_startTime');
-        alert("Jornada guardada y sincronizada en todos tus dispositivos.");
+        alert("✅ Jornada guardada y sincronizada exitosamente.");
         location.reload(); 
     } catch (error) {
-        alert("Error al finalizar: " + error.message);
+        console.error("Error al finalizar:", error);
+        alert("❌ Error al finalizar la sesión. Verifique su conexión.");
+        
+        // Si ocurre un error, volvemos a habilitar el botón para reintentar
+        if (btnFinalizar) {
+            btnFinalizar.disabled = false;
+            btnFinalizar.innerHTML = '<i class="bi bi-stop-circle-fill"></i> FINALIZAR Y REGISTRAR';
+        }
     }
 }
 
