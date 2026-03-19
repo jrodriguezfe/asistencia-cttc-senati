@@ -213,6 +213,8 @@ function cargarReporteAsistencias() {
         // Variables para el gráfico (opcional)
         let sesionesCompletas = 0;
         let sesionesIncompletas = 0;
+        
+        let registrosMatriz = []; // Almacenará datos para el cuadro de doble entrada
 
         snapshot.forEach(doc => {
             const a = doc.data();
@@ -232,6 +234,15 @@ function cargarReporteAsistencias() {
                 if (cumpleNombre && cumpleNRC && cumpleDesde && cumpleHasta) {
                     sumaTotal += a.horasTotales;
                     
+                    // Recolectar datos para la Matriz
+                    registrosMatriz.push({
+                        nombre: a.nombre,
+                        uid: a.uid || "S/N",
+                        fechaObj: fechaObj,
+                        horas: a.horasTotales,
+                        modalidad: a.modalidad || "Presencial"
+                    });
+
                     const checks = a.checklist || {};
                     const totalChecks = Object.values(checks).filter(v => v === true).length;
                     if(totalChecks === 6) sesionesCompletas++; else sesionesIncompletas++;
@@ -278,6 +289,8 @@ function cargarReporteAsistencias() {
         if(typeof actualizarGrafico === "function") {
             actualizarGrafico(sesionesCompletas, sesionesIncompletas);
         }
+        
+        renderizarMatriz(registrosMatriz); // Llama a la generación de la matriz
     });
 }
 
@@ -388,5 +401,157 @@ function exportarCierreExcel() {
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `Cierre_Mes_Asistencia.csv`;
+    link.click();
+}
+
+// --- FUNCIONES PARA EDITAR HORAS ---
+
+function abrirModalEdicion(id, horas, motivo) {
+    document.getElementById('edit-id').value = id;
+    document.getElementById('edit-horas').value = horas;
+    document.getElementById('edit-motivo').value = motivo !== 'undefined' ? motivo : '';
+    
+    // Abrir el modal usando la API de Bootstrap
+    const modalElement = document.getElementById('modalEditarHora');
+    const myModal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    myModal.show();
+}
+
+async function guardarEdicionHora() {
+    const id = document.getElementById('edit-id').value;
+    const horas = parseFloat(document.getElementById('edit-horas').value);
+    const motivo = document.getElementById('edit-motivo').value;
+
+    if (!id || isNaN(horas)) {
+        return alert("Por favor, ingresa una cantidad de horas válida.");
+    }
+
+    try {
+        await db.collection('asistencias').doc(id).update({
+            horasTotales: horas,
+            comentariosEdit: motivo
+        });
+        
+        const modalElement = document.getElementById('modalEditarHora');
+        const myModal = bootstrap.Modal.getInstance(modalElement);
+        myModal.hide(); // Cerrar el modal
+
+        alert("Edición guardada correctamente.");
+        cargarReporteAsistencias(); // Refrescar la tabla
+    } catch (error) {
+        console.error("Error al editar:", error);
+        alert("No se pudo guardar la edición. Revisa tu conexión y permisos.");
+    }
+}
+
+// --- FUNCIONES DE LA MATRIZ DE ASISTENCIA ---
+
+function renderizarMatriz(registros) {
+    const container = document.getElementById('contenedor-matriz');
+    if (!container) return;
+
+    if (registros.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No hay datos para mostrar en la matriz.</div>';
+        return;
+    }
+
+    // 1. Obtener fechas únicas (ignorar la hora para unificar por día)
+    const fechasSet = new Set();
+    registros.forEach(r => {
+        if (r.fechaObj) {
+            const year = r.fechaObj.getFullYear();
+            const month = String(r.fechaObj.getMonth() + 1).padStart(2, '0');
+            const day = String(r.fechaObj.getDate()).padStart(2, '0');
+            fechasSet.add(`${year}-${month}-${day}`);
+        }
+    });
+    const fechas = Array.from(fechasSet).sort();
+
+    // 2. Agrupar por docente
+    const docentes = {};
+    registros.forEach(r => {
+        if (!r.fechaObj) return;
+        const docId = r.uid;
+        if (!docentes[docId]) {
+            docentes[docId] = { nombre: r.nombre, uid: r.uid, dias: {} };
+        }
+        
+        const year = r.fechaObj.getFullYear();
+        const month = String(r.fechaObj.getMonth() + 1).padStart(2, '0');
+        const day = String(r.fechaObj.getDate()).padStart(2, '0');
+        const fechaStr = `${year}-${month}-${day}`;
+
+        if (!docentes[docId].dias[fechaStr]) {
+            docentes[docId].dias[fechaStr] = { horas: 0, modalidades: new Set() };
+        }
+        docentes[docId].dias[fechaStr].horas += r.horas;
+        
+        // Determinar Siglas de la modalidad
+        const modStr = r.modalidad.toLowerCase().includes('presencial') ? 'TP' : 'TT';
+        docentes[docId].dias[fechaStr].modalidades.add(modStr);
+    });
+
+    // 3. Generar HTML
+    let html = '<div class="table-responsive"><table class="table table-bordered table-hover align-middle text-center" id="tabla-datos-matriz"><thead class="table-dark">';
+    
+    // Primera fila (Docentes y Fechas)
+    html += '<tr><th rowspan="2" class="align-middle">Docente</th><th rowspan="2" class="align-middle">ID / DNI</th>';
+    fechas.forEach(f => {
+        const partes = f.split('-'); // Formato corto: DD/MM
+        html += `<th colspan="2">${partes[2]}/${partes[1]}</th>`;
+    });
+    html += '</tr><tr>';
+    
+    // Segunda fila (Columnas divididas en Horas y Modalidad)
+    fechas.forEach(() => {
+        html += '<th>Horas</th><th>Mod.</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    // Llenar cuerpo por cada docente
+    Object.values(docentes).forEach(d => {
+        html += `<tr><td class="text-start text-nowrap fw-bold">${d.nombre}</td><td>${d.uid}</td>`;
+        fechas.forEach(f => {
+            const dia = d.dias[f];
+            if (dia) {
+                const mods = Array.from(dia.modalidades).join('/'); // si tuviera TP y TT en un día mostrará TP/TT
+                const badgeClass = mods.includes('TP') ? 'bg-success' : 'bg-info text-dark';
+                html += `<td>${dia.horas.toFixed(2)}</td><td><span class="badge ${badgeClass}">${mods}</span></td>`;
+            } else {
+                html += '<td class="text-muted bg-light">-</td><td class="text-muted bg-light">-</td>';
+            }
+        });
+        html += '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+function exportarMatrizExcel() {
+    const tabla = document.getElementById("tabla-datos-matriz");
+    if (!tabla) return alert("No hay datos en la matriz para exportar.");
+
+    let csv = "\ufeff"; // BOM para correcta codificación en Excel de Tildes y Ñ
+    const rows = tabla.querySelectorAll("tr");
+    
+    rows.forEach(row => {
+        let rowData = [];
+        const cols = row.querySelectorAll("th, td");
+        cols.forEach(col => {
+            rowData.push(`"${col.innerText.trim()}"`);
+            // Para compatibilizar el colspan con CSV, creamos columnas en blanco al lado
+            if(col.hasAttribute("colspan")) {
+                const colspan = parseInt(col.getAttribute("colspan"));
+                for(let i = 1; i < colspan; i++) rowData.push('""');
+            }
+        });
+        csv += rowData.join(";") + "\n";
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Matriz_Asistencia_Docentes_${new Date().toLocaleDateString()}.csv`;
     link.click();
 }

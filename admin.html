@@ -77,7 +77,7 @@
                             <th>Docente</th>
                             <th>Curso / NRC</th> <th>Actividad / Tema</th>
                             <th>Horas</th>
-                            <th>Checks</th> <th>Evidencia</th>
+                            <th>Checks</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -91,6 +91,19 @@
                         </tr>
                     </tfoot>
                 </table>
+            </div>
+        </div>
+
+        <!-- NUEVA SECCIÓN: MATRIZ DE ASISTENCIA -->
+        <div class="card shadow-sm border-0 p-4 mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="fw-bold text-principal"><i class="bi bi-grid-3x3"></i> Matriz de Asistencia Diaria</h2>
+                <button class="btn btn-outline-success fw-bold" onclick="exportarMatrizExcel()">
+                    <i class="bi bi-file-earmark-excel"></i> Exportar Matriz
+                </button>
+            </div>
+            <div id="contenedor-matriz">
+                <div class="text-center text-muted py-3">Cargando matriz...</div>
             </div>
         </div>
     </div>
