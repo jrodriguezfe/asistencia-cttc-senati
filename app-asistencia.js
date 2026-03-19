@@ -244,7 +244,6 @@ function cargarReporteAsistencias() {
                             <span class="${totalChecks === 6 ? 'text-success' : 'text-muted'} fw-bold">${totalChecks}/6</span> 
                             <i class="bi bi-patch-check-fill ${totalChecks === 6 ? 'text-success' : 'text-light'}"></i>
                         </td>
-                        <td>${a.urlEvidencia ? `<a href="${a.urlEvidencia}" target="_blank" class="btn btn-sm btn-link p-0">Ver</a>` : '---'}</td>
                         <td class="text-nowrap">
                             <button class="btn btn-sm btn-warning" onclick="abrirModalEdicion('${id}', ${a.horasTotales}, '${a.comentariosEdit || ''}')">
                                 <i class="bi bi-pencil-square"></i>
