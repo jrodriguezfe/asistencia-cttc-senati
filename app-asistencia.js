@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     comentarios: (data.comentarios || "") + " [CIERRE AUTOMÁTICO POR EXCESO DE TIEMPO]"
                 });
 
+                localStorage.removeItem('sesion_startTime');
                 alert("Tenías una sesión abierta de hace más de 8 horas. Se ha cerrado automáticamente con el límite de tiempo permitido.");
                 location.reload();
                 return;
@@ -69,7 +70,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 3. Si es menor a 8 horas, recuperar normalmente
             currentAsistenciaId = idDoc;
-            startTime = inicio;
+            
+            // Recuperar el startTime exacto de localStorage para que no se reinicie el cronómetro
+            const savedTime = localStorage.getItem('sesion_startTime');
+            if (savedTime) {
+                startTime = new Date(savedTime);
+            } else {
+                startTime = inicio;
+                localStorage.setItem('sesion_startTime', startTime.toISOString());
+            }
             
             document.getElementById('start-zone').style.display = 'none';
             document.getElementById('end-zone').style.display = 'block';
@@ -93,6 +102,7 @@ async function startSession() {
     if (!docenteUID) return alert("Error: Identidad no detectada.");
     
     startTime = new Date();
+    localStorage.setItem('sesion_startTime', startTime.toISOString());
     const nuevaAsistencia = {
         uid: docenteUID,
         nombre: docenteNombre,
@@ -166,6 +176,7 @@ async function endSession() {
         await db.collection('asistencias').doc(currentAsistenciaId).update(datosRegistro);
         
         clearInterval(timerInterval);
+        localStorage.removeItem('sesion_startTime');
         alert("Jornada guardada y sincronizada en todos tus dispositivos.");
         location.reload(); 
     } catch (error) {
