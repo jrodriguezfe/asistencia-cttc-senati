@@ -206,6 +206,10 @@ function cargarReporteAsistencias() {
     const filtroDesde = document.getElementById('filtro-desde').value;
     const filtroHasta = document.getElementById('filtro-hasta').value;
 
+    // Filtros independientes para la matriz
+    const matrizDesde = document.getElementById('matriz-desde')?.value || "";
+    const matrizHasta = document.getElementById('matriz-hasta')?.value || "";
+
     db.collection('asistencias').orderBy('inicio', 'desc').get().then(snapshot => {
         let html = '';
         let sumaTotal = 0;
@@ -234,15 +238,6 @@ function cargarReporteAsistencias() {
                 if (cumpleNombre && cumpleNRC && cumpleDesde && cumpleHasta) {
                     sumaTotal += a.horasTotales;
                     
-                    // Recolectar datos para la Matriz
-                    registrosMatriz.push({
-                        nombre: a.nombre,
-                        uid: a.uid || "S/N",
-                        fechaObj: fechaObj,
-                        horas: a.horasTotales,
-                        modalidad: a.modalidad || "Presencial"
-                    });
-
                     const checks = a.checklist || {};
                     const totalChecks = Object.values(checks).filter(v => v === true).length;
                     if(totalChecks === 6) sesionesCompletas++; else sesionesIncompletas++;
@@ -276,6 +271,20 @@ function cargarReporteAsistencias() {
                         </td>
                     </tr>`;
                 }
+
+                // Lógica separada para poblar la matriz con sus propios filtros de fechas
+                let cumpleMatrizDesde = matrizDesde ? (fechaISO >= matrizDesde) : true;
+                let cumpleMatrizHasta = matrizHasta ? (fechaISO <= matrizHasta) : true;
+                
+                if (cumpleNombre && cumpleMatrizDesde && cumpleMatrizHasta) {
+                    registrosMatriz.push({
+                        nombre: a.nombre,
+                        uid: a.uid || "S/N",
+                        fechaObj: fechaObj,
+                        horas: a.horasTotales,
+                        modalidad: a.modalidad || "Presencial"
+                    });
+                }
             }
         });
 
@@ -299,6 +308,12 @@ function limpiarFiltros() {
     document.getElementById('filtro-nombre').value = '';
     document.getElementById('filtro-desde').value = '';
     document.getElementById('filtro-hasta').value = '';
+    cargarReporteAsistencias();
+}
+
+function limpiarFiltrosMatriz() {
+    if (document.getElementById('matriz-desde')) document.getElementById('matriz-desde').value = '';
+    if (document.getElementById('matriz-hasta')) document.getElementById('matriz-hasta').value = '';
     cargarReporteAsistencias();
 }
 

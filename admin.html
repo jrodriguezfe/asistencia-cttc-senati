@@ -102,6 +102,24 @@
                     <i class="bi bi-file-earmark-excel"></i> Exportar Matriz
                 </button>
             </div>
+
+            <!-- Filtros independientes de la Matriz -->
+            <div class="row g-3 mb-4 p-3 bg-light rounded border">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Desde (Matriz)</label>
+                    <input type="date" id="matriz-desde" class="form-control" onchange="cargarReporteAsistencias()">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Hasta (Matriz)</label>
+                    <input type="date" id="matriz-hasta" class="form-control" onchange="cargarReporteAsistencias()">
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button class="btn btn-outline-secondary w-100" onclick="limpiarFiltrosMatriz()">
+                        <i class="bi bi-eraser"></i> Limpiar Fechas Matriz
+                    </button>
+                </div>
+            </div>
+            
             <div id="contenedor-matriz">
                 <div class="text-center text-muted py-3">Cargando matriz...</div>
             </div>
