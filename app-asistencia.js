@@ -20,16 +20,27 @@ let datosCierreMes = []; // Variable global para guardar el último reporte gene
 const params = new URLSearchParams(window.location.search);
 const docenteNombre = params.get('name');
 const docenteUID = params.get('uid');
+const docenteDNI = params.get('dni');
+const docenteID = params.get('id');
 
 // Verifica en consola si los datos llegan al cargar la página
-console.log("Datos recibidos:", { docenteUID, docenteNombre });
+console.log("Datos recibidos:", { docenteUID, docenteNombre, docenteDNI, docenteID });
 
 
 
 // 1. RECUPERACIÓN AUTOMÁTICA AL CARGAR LA PÁGINA
 document.addEventListener('DOMContentLoaded', async () => {
     if (document.getElementById('welcome-msg')) {
-        document.getElementById('welcome-msg').innerText = `Hola, ${docenteNombre}`;
+        document.getElementById('welcome-msg').innerText = `Hola, ${docenteNombre || 'Docente'}`;
+    }
+    if (document.getElementById('display-dni')) {
+        document.getElementById('display-dni').innerText = docenteDNI || 'S/N';
+    }
+    if (document.getElementById('display-id')) {
+        document.getElementById('display-id').innerText = docenteID || 'S/N';
+    }
+    if (document.getElementById('display-uid')) {
+        document.getElementById('display-uid').innerText = docenteUID || 'S/N';
     }
 
     if (!docenteUID) return;
@@ -106,6 +117,8 @@ async function startSession() {
     const nuevaAsistencia = {
         uid: docenteUID,
         nombre: docenteNombre,
+        dni: docenteDNI || "",
+        id_docente: docenteID || "",
         inicio: firebase.firestore.FieldValue.serverTimestamp(),
         estado: "activo",
         nombreCurso: "",

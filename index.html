@@ -23,8 +23,14 @@
             <div class="col-md-6">
                 <div id="status-card" class="card shadow-lg border-0 p-4 text-center">
                     <h2 id="welcome-msg" class="fw-bold text-dark">Hola, Docente</h2>
-                    <p class="text-muted">Control de Jornada Parcial</p>
+                    <p class="text-muted mb-2">Control de Jornada Parcial</p>
                     
+                    <div class="d-flex flex-wrap justify-content-center gap-2 mb-3">
+                        <span class="badge bg-secondary"><i class="bi bi-person-vcard"></i> DNI: <span id="display-dni">---</span></span>
+                        <span class="badge bg-secondary"><i class="bi bi-card-text"></i> ID: <span id="display-id">---</span></span>
+                        <span class="badge bg-light text-dark border"><i class="bi bi-fingerprint"></i> UID: <span id="display-uid">---</span></span>
+                    </div>
+
                     <div id="timer-display" class="display-1 fw-black my-4 text-primary">00:00:00</div>
                     
                     <div id="start-zone">
