@@ -23,9 +23,10 @@ const docenteNombre = params.get('name');
 const docenteUID = params.get('uid');
 const docenteDNI = params.get('dni');
 const docenteID = params.get('id');
+const docenteRol = params.get('rol');
 
 // Verifica en consola si los datos llegan al cargar la página
-console.log("Datos recibidos:", { docenteUID, docenteNombre, docenteDNI, docenteID });
+console.log("Datos recibidos:", { docenteUID, docenteNombre, docenteDNI, docenteID, docenteRol });
 
 
 
@@ -120,6 +121,7 @@ async function startSession() {
         nombre: docenteNombre,
         dni: docenteDNI || "",
         id_docente: docenteID || "",
+        rol: docenteRol || "Docente",
         inicio: firebase.firestore.FieldValue.serverTimestamp(),
         estado: "activo",
         nombreCurso: "",
