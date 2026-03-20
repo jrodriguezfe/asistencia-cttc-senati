@@ -265,7 +265,7 @@ async function verMisRegistros() {
                         <div id="resumen-grafico" class="mb-3"></div>
                         
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="text-muted small">Registros de los últimos 30 días</span>
+                            <span class="text-muted small">Tus últimos registros</span>
                             <button class="btn btn-sm btn-outline-success fw-bold" onclick="descargarMisRegistros()">
                                 <i class="bi bi-download"></i> Descargar CSV
                             </button>
@@ -293,42 +293,46 @@ async function verMisRegistros() {
         document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
 
-    const myModal = new bootstrap.Modal(document.getElementById('modalMisRegistros'));
+    // Solución al bug de múltiples clics en Bootstrap 5
+    const modalElement = document.getElementById('modalMisRegistros');
+    const myModal = bootstrap.Modal.getOrCreateInstance(modalElement);
     myModal.show();
+
+    // Resetear visualmente cada vez que se abre
+    document.getElementById('tabla-mis-registros').innerHTML = '<tr><td colspan="5" class="py-3">Cargando registros... <span class="spinner-border spinner-border-sm"></span></td></tr>';
+    document.getElementById('resumen-grafico').innerHTML = '';
 
     try {
         const snapshot = await db.collection('asistencias').where("uid", "==", docenteUID).get();
         let registros = [];
         
-        const limite30Dias = new Date();
-        limite30Dias.setDate(limite30Dias.getDate() - 30);
-
         snapshot.forEach(doc => {
             const data = doc.data();
-            if ((data.estado === "finalizado" || data.estado === "finalizado_auto") && data.inicio) {
-                const fechaDoc = data.inicio.toDate();
-                if (fechaDoc >= limite30Dias) {
-                    registros.push(data);
-                }
+            // Compatibilidad: si el registro es antiguo y no tiene 'estado', validamos si ya tiene hora de 'fin'
+            const isFinalizado = data.estado === "finalizado" || data.estado === "finalizado_auto" || data.fin != null;
+            
+            if (isFinalizado) {
+                registros.push(data);
             }
         });
 
-        // Ordenar descendentemente por fecha en memoria (evita errores de índices en Firestore)
+        // Ordenar descendentemente por fecha en memoria
         registros.sort((a, b) => {
             const dateA = a.inicio ? a.inicio.toDate() : new Date(0);
             const dateB = b.inicio ? b.inicio.toDate() : new Date(0);
             return dateB - dateA;
         });
 
-        // Calcular total de horas para el resumen
-        let totalHoras30Dias = 0;
-        registros.forEach(r => totalHoras30Dias += (r.horasTotales || 0));
+        // Calcular total de horas para el resumen global
+        let totalHoras = 0;
+        registros.forEach(r => totalHoras += (r.horasTotales || 0));
+        
         document.getElementById('resumen-grafico').innerHTML = `
             <div class="alert alert-success d-flex justify-content-between align-items-center py-2 border-0 shadow-sm" style="background-color: #e8f5e9;">
                 <div>
-                    <h6 class="mb-0 fw-bold text-success"><i class="bi bi-calendar2-check"></i> Total Últimos 30 días</h6>
+                    <h6 class="mb-0 fw-bold text-success"><i class="bi bi-calendar2-check"></i> Total Histórico de Horas</h6>
                 </div>
-                <h4 class="mb-0 fw-bold text-success">${totalHoras30Dias.toFixed(2)} hrs</h4>
+                <h4 class="mb-0 fw-bold text-success">${totalHoras.toFixed(2)} hrs</h4>
             </div>
         `;
 
@@ -336,12 +340,15 @@ async function verMisRegistros() {
         const tbody = document.getElementById('tabla-mis-registros');
 
         if (registros.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-muted py-3">No tienes registros anteriores.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-muted py-3">No tienes registros anteriores finalizados.</td></tr>';
             return;
         }
 
         let html = '';
-        registros.forEach(r => {
+        // Mostramos solo los últimos 50 registros para evitar sobrecargar el modal
+        const registrosMostrar = registros.slice(0, 50);
+
+        registrosMostrar.forEach(r => {
             const fecha = r.inicio ? r.inicio.toDate().toLocaleDateString() : '---';
             const horas = r.horasTotales ? r.horasTotales.toFixed(2) : '0.00';
             const estadoBadge = r.estado === 'finalizado_auto' 
@@ -362,7 +369,7 @@ async function verMisRegistros() {
 
     } catch (error) {
         console.error("Error al obtener registros:", error);
-        document.getElementById('tabla-mis-registros').innerHTML = '<tr><td colspan="5" class="text-danger py-3">Error al cargar los registros.</td></tr>';
+        document.getElementById('tabla-mis-registros').innerHTML = '<tr><td colspan="5" class="text-danger py-3">Error al cargar los registros. Revisa tu conexión a internet.</td></tr>';
     }
 }
 
@@ -384,7 +391,7 @@ function descargarMisRegistros() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `Mis_Asistencias_Ultimos_30_Dias_${new Date().toLocaleDateString()}.csv`;
+    link.download = `Mis_Asistencias_${new Date().toLocaleDateString()}.csv`;
     link.click();
 }
 
