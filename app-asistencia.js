@@ -43,6 +43,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (document.getElementById('display-uid')) {
         document.getElementById('display-uid').innerText = docenteUID || 'S/N';
+        // Ocultar el elemento padre para que no se vea el UID ni su etiqueta visualmente
+        document.getElementById('display-uid').parentElement.style.display = 'none';
     }
 
     if (!docenteUID) return;
@@ -230,6 +232,127 @@ function iniciarCronometro() {
         const sec = String(diff.getUTCSeconds()).padStart(2, '0');
         document.getElementById('timer-display').innerText = `${hrs}:${min}:${sec}`;
     }, 1000);
+}
+
+// --- 3. FUNCIONES DEL DOCENTE (VER Y DESCARGAR REGISTROS) ---
+async function verMisRegistros() {
+    if (!docenteUID) return alert("Error: Identidad no detectada.");
+
+    // Crear el modal dinámicamente si no existe, manteniendo el HTML limpio
+    if (!document.getElementById('modalMisRegistros')) {
+        const modalHTML = `
+        <div class="modal fade" id="modalMisRegistros" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-clock-history"></i> Mi Historial de Asistencias</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="text-muted small">Mostrando registros finalizados</span>
+                            <button class="btn btn-sm btn-outline-success fw-bold" onclick="descargarMisRegistros()">
+                                <i class="bi bi-download"></i> Descargar CSV
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover text-center align-middle" style="font-size: 0.9rem;">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Curso / NRC</th>
+                                        <th>Tema Dictado</th>
+                                        <th>Horas</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-mis-registros">
+                                    <tr><td colspan="5" class="py-3">Cargando registros... <span class="spinner-border spinner-border-sm"></span></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+    }
+
+    const myModal = new bootstrap.Modal(document.getElementById('modalMisRegistros'));
+    myModal.show();
+
+    try {
+        const snapshot = await db.collection('asistencias').where("uid", "==", docenteUID).get();
+        let registros = [];
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.estado === "finalizado" || data.estado === "finalizado_auto") {
+                registros.push(data);
+            }
+        });
+
+        // Ordenar descendentemente por fecha en memoria (evita errores de índices en Firestore)
+        registros.sort((a, b) => {
+            const dateA = a.inicio ? a.inicio.toDate() : new Date(0);
+            const dateB = b.inicio ? b.inicio.toDate() : new Date(0);
+            return dateB - dateA;
+        });
+
+        window.misRegistrosData = registros; // Guardar globalmente para la descarga
+        const tbody = document.getElementById('tabla-mis-registros');
+
+        if (registros.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-muted py-3">No tienes registros anteriores.</td></tr>';
+            return;
+        }
+
+        let html = '';
+        registros.forEach(r => {
+            const fecha = r.inicio ? r.inicio.toDate().toLocaleDateString() : '---';
+            const horas = r.horasTotales ? r.horasTotales.toFixed(2) : '0.00';
+            const estadoBadge = r.estado === 'finalizado_auto' 
+                ? '<span class="badge bg-warning text-dark" title="Cierre Automático (8h)">Auto</span>' 
+                : '<span class="badge bg-success">Completado</span>';
+
+            html += `
+                <tr>
+                    <td class="fw-bold text-nowrap">${fecha}</td>
+                    <td><div class="text-truncate" style="max-width: 150px;" title="${r.nombreCurso || ''}">${r.nombreCurso || '---'}</div><small class="text-muted">NRC: ${r.nrc || '---'}</small></td>
+                    <td class="text-start"><div class="text-truncate" style="max-width: 200px;" title="${r.temaDictado || ''}">${r.temaDictado || '---'}</div></td>
+                    <td class="fw-bold text-primary">${horas}</td>
+                    <td>${estadoBadge}</td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+
+    } catch (error) {
+        console.error("Error al obtener registros:", error);
+        document.getElementById('tabla-mis-registros').innerHTML = '<tr><td colspan="5" class="text-danger py-3">Error al cargar los registros.</td></tr>';
+    }
+}
+
+function descargarMisRegistros() {
+    if (!window.misRegistrosData || window.misRegistrosData.length === 0) return alert("No hay datos para descargar.");
+
+    let csv = "\ufeffFecha;Curso;NRC;Tema;Horas;Estado\n";
+    window.misRegistrosData.forEach(r => {
+        const fecha = r.inicio ? r.inicio.toDate().toLocaleDateString() : '---';
+        const curso = (r.nombreCurso || '').replace(/"/g, '""');
+        const nrc = r.nrc || '';
+        const tema = (r.temaDictado || '').replace(/"/g, '""');
+        const horas = r.horasTotales ? r.horasTotales.toFixed(2) : '0.00';
+        const estado = r.estado === 'finalizado_auto' ? 'Cierre Automático' : 'Completado';
+
+        csv += `"${fecha}";"${curso}";"${nrc}";"${tema}";"${horas}";"${estado}"\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Mis_Asistencias_${new Date().toLocaleDateString()}.csv`;
+    link.click();
 }
 
 // FUNCIONES DE ADMINISTRADOR
