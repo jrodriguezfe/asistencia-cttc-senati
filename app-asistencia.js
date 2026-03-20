@@ -33,7 +33,19 @@ console.log("Datos recibidos:", { docenteUID, docenteNombre, docenteDNI, docente
 // 1. RECUPERACIÓN AUTOMÁTICA AL CARGAR LA PÁGINA
 document.addEventListener('DOMContentLoaded', async () => {
     if (document.getElementById('welcome-msg')) {
-        document.getElementById('welcome-msg').innerText = `Hola, ${docenteNombre || 'Docente'}`;
+        const welcomeMsg = document.getElementById('welcome-msg');
+        welcomeMsg.innerText = `Hola, ${docenteNombre || 'Docente'}`;
+        
+        // Inyectar el botón de "Mis Registros" dinámicamente debajo del nombre
+        if (!document.getElementById('btn-mis-registros')) {
+            welcomeMsg.insertAdjacentHTML('afterend', `
+                <div class="mt-2 mb-3">
+                    <button id="btn-mis-registros" class="btn btn-success btn-sm rounded-pill fw-bold shadow-sm" onclick="verMisRegistros()">
+                        <i class="bi bi-clock-history"></i> Mis Registros
+                    </button>
+                </div>
+            `);
+        }
     }
     if (document.getElementById('display-dni')) {
         document.getElementById('display-dni').innerText = docenteDNI || 'S/N';
@@ -249,8 +261,11 @@ async function verMisRegistros() {
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
+                        <!-- Resumen visual -->
+                        <div id="resumen-grafico" class="mb-3"></div>
+                        
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="text-muted small">Mostrando registros finalizados</span>
+                            <span class="text-muted small">Registros de los últimos 30 días</span>
                             <button class="btn btn-sm btn-outline-success fw-bold" onclick="descargarMisRegistros()">
                                 <i class="bi bi-download"></i> Descargar CSV
                             </button>
@@ -285,10 +300,16 @@ async function verMisRegistros() {
         const snapshot = await db.collection('asistencias').where("uid", "==", docenteUID).get();
         let registros = [];
         
+        const limite30Dias = new Date();
+        limite30Dias.setDate(limite30Dias.getDate() - 30);
+
         snapshot.forEach(doc => {
             const data = doc.data();
-            if (data.estado === "finalizado" || data.estado === "finalizado_auto") {
-                registros.push(data);
+            if ((data.estado === "finalizado" || data.estado === "finalizado_auto") && data.inicio) {
+                const fechaDoc = data.inicio.toDate();
+                if (fechaDoc >= limite30Dias) {
+                    registros.push(data);
+                }
             }
         });
 
@@ -298,6 +319,18 @@ async function verMisRegistros() {
             const dateB = b.inicio ? b.inicio.toDate() : new Date(0);
             return dateB - dateA;
         });
+
+        // Calcular total de horas para el resumen
+        let totalHoras30Dias = 0;
+        registros.forEach(r => totalHoras30Dias += (r.horasTotales || 0));
+        document.getElementById('resumen-grafico').innerHTML = `
+            <div class="alert alert-success d-flex justify-content-between align-items-center py-2 border-0 shadow-sm" style="background-color: #e8f5e9;">
+                <div>
+                    <h6 class="mb-0 fw-bold text-success"><i class="bi bi-calendar2-check"></i> Total Últimos 30 días</h6>
+                </div>
+                <h4 class="mb-0 fw-bold text-success">${totalHoras30Dias.toFixed(2)} hrs</h4>
+            </div>
+        `;
 
         window.misRegistrosData = registros; // Guardar globalmente para la descarga
         const tbody = document.getElementById('tabla-mis-registros');
@@ -351,7 +384,7 @@ function descargarMisRegistros() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `Mis_Asistencias_${new Date().toLocaleDateString()}.csv`;
+    link.download = `Mis_Asistencias_Ultimos_30_Dias_${new Date().toLocaleDateString()}.csv`;
     link.click();
 }
 
