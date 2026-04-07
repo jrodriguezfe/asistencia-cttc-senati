@@ -47,11 +47,19 @@
             </div>
 
             <div class="row g-3 mb-4 p-3 bg-light rounded border">
-                <div class="col-md-4">
-                    <label class="form-label fw-bold">Filtrar por Docente</label>
-                    <input type="text" id="filtro-nombre" class="form-control" placeholder="Nombre del docente..." oninput="cargarReporteAsistencias()">
-                </div>
                 <div class="col-md-3">
+                    <label class="form-label fw-bold">Filtrar por Docente</label>
+                    <select id="filtro-nombre" class="form-select" onchange="cargarReporteAsistencias()">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Filtrar por NRC</label>
+                    <select id="filtro-nrc" class="form-select" onchange="cargarReporteAsistencias()">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <label class="form-label fw-bold">Fecha Inicio</label>
                     <input type="date" id="filtro-desde" class="form-control" onchange="cargarReporteAsistencias()">
                 </div>
@@ -77,7 +85,7 @@
                             <div class="modal-body">
                                 <div id="contenido-reporte-cierre"></div>
                             </div>
-                            <div class="modal-footer">
+                            <div class="modal-footer" id="modal-cierre-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                                 <button type="button" class="btn btn-success" onclick="exportarCierreExcel()">Exportar Cierre</button>
                             </div>
@@ -113,6 +121,32 @@
                             <td colspan="2"></td>
                         </tr>
                     </tfoot>
+                </table>
+            </div>
+            
+            <!-- Controles de Paginación -->
+            <div id="paginacion-container"></div>
+        </div>
+
+        <!-- NUEVA SECCIÓN: PLANILLAS GUARDADAS (AUDITORÍA) -->
+        <div class="card shadow-sm border-0 p-4 mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="fw-bold text-principal"><i class="bi bi-safe"></i> Planillas Guardadas (Auditoría)</h2>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Mes / Periodo</th>
+                            <th>Fecha de Registro</th>
+                            <th>Total Docentes</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-planillas-body">
+                        <tr><td colspan="5" class="text-center text-muted py-3">Cargando planillas guardadas...</td></tr>
+                    </tbody>
                 </table>
             </div>
         </div>

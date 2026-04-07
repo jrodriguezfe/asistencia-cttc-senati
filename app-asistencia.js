@@ -401,8 +401,10 @@ function cargarReporteAsistencias() {
     if (!container) return;
 
     // 1. Captura de todos los filtros (Asegúrate de tener el input 'filtro-nrc' en tu HTML)
-    const filtroNombre = document.getElementById('filtro-nombre').value.toLowerCase();
-    const filtroNRC = document.getElementById('filtro-nrc')?.value || ""; 
+    const filtroNombreValue = document.getElementById('filtro-nombre')?.value || "";
+    const filtroNombre = filtroNombreValue.toLowerCase();
+    const filtroNRCValue = document.getElementById('filtro-nrc')?.value || "";
+    const filtroNRC = filtroNRCValue.trim().toLowerCase(); 
     const filtroDesde = document.getElementById('filtro-desde').value;
     const filtroHasta = document.getElementById('filtro-hasta').value;
 
@@ -420,6 +422,10 @@ function cargarReporteAsistencias() {
         
         let registrosMatriz = []; // Almacenará datos para el cuadro de doble entrada
         window.datosEdicion = {}; // Guardar en memoria local para evitar consultas extra en Firebase
+        window.filteredAsistencias = []; // <-- Arreglo para exportación y cierre de mes
+
+        let uniqueNombres = new Set();
+        let uniqueNRCs = new Set();
 
         snapshot.forEach(doc => {
             const a = doc.data();
@@ -427,12 +433,15 @@ function cargarReporteAsistencias() {
 
             // 2. Considerar estados de finalización manual y automática
             if (a.estado === "finalizado" || a.estado === "finalizado_auto") {
+                if (a.nombre) uniqueNombres.add(a.nombre.trim());
+                if (a.nrc) uniqueNRCs.add(a.nrc.toString().trim());
+
                 const fechaObj = a.inicio ? a.inicio.toDate() : null;
                 const fechaISO = fechaObj ? fechaObj.toISOString().split('T')[0] : '';
                 
                 // 3. Aplicación de Filtros
-                let cumpleNombre = a.nombre.toLowerCase().includes(filtroNombre);
-                let cumpleNRC = filtroNRC === "" || (a.nrc && a.nrc.includes(filtroNRC));
+                let cumpleNombre = filtroNombre === "" || a.nombre.trim().toLowerCase() === filtroNombre;
+                let cumpleNRC = filtroNRC === "" || (a.nrc && a.nrc.toString().trim().toLowerCase() === filtroNRC);
                 let cumpleDesde = filtroDesde ? (fechaISO >= filtroDesde) : true;
                 let cumpleHasta = filtroHasta ? (fechaISO <= filtroHasta) : true;
 
@@ -445,6 +454,14 @@ function cargarReporteAsistencias() {
                     const checks = a.checklist || {};
                     const totalChecks = Object.values(checks).filter(v => v === true).length;
                     if(totalChecks === 6) sesionesCompletas++; else sesionesIncompletas++;
+
+                    // <-- Guardar registro en la variable global para usarlo en Cierre de Mes y Excel
+                    window.filteredAsistencias.push({
+                        id: id,
+                        data: a,
+                        fechaObj: fechaObj,
+                        totalChecks: totalChecks
+                    });
 
                     // 4. Lógica Visual para Discrepancias y Cierres Auto
                     const claseFila = a.estado === "finalizado_auto" ? "table-warning" : "";
@@ -499,6 +516,10 @@ function cargarReporteAsistencias() {
         container.innerHTML = html;
         document.getElementById('total-horas-acumuladas').innerText = sumaTotal.toFixed(2);
         
+        // Actualizar listas desplegables
+        actualizarDropdown('filtro-nombre', uniqueNombres, filtroNombreValue);
+        actualizarDropdown('filtro-nrc', uniqueNRCs, filtroNRCValue);
+
         // Actualizar contador grande y gráfico si los tienes
         if(document.getElementById('total-horas-grande')) {
             document.getElementById('total-horas-grande').innerText = sumaTotal.toFixed(2);
@@ -512,8 +533,25 @@ function cargarReporteAsistencias() {
 }
 
 
+function actualizarDropdown(id, setValores, valorActual) {
+    const select = document.getElementById(id);
+    if (!select) return;
+    
+    // Ordenamos alfabéticamente las opciones extraídas
+    const opciones = Array.from(setValores).filter(Boolean).sort((a, b) => a.localeCompare(b));
+    let html = '<option value="">Todos</option>';
+    
+    opciones.forEach(op => {
+        html += `<option value="${op}">${op}</option>`;
+    });
+    
+    select.innerHTML = html;
+    select.value = valorActual; // Restauramos la selección previa para que no parpadee/reseteé la vista
+}
+
 function limpiarFiltros() {
     document.getElementById('filtro-nombre').value = '';
+    if (document.getElementById('filtro-nrc')) document.getElementById('filtro-nrc').value = '';
     document.getElementById('filtro-desde').value = '';
     document.getElementById('filtro-hasta').value = '';
     cargarReporteAsistencias();
@@ -526,25 +564,23 @@ function limpiarFiltrosMatriz() {
 }
 
 function exportarExcel() {
-    const rows = document.querySelectorAll("#tabla-reportes-body tr");
-    // Cabecera actualizada
+    if (!window.filteredAsistencias || window.filteredAsistencias.length === 0) {
+        return alert("No hay datos para exportar.");
+    }
+
     let csv = "\ufeffFecha;Docente;ID;DNI;Curso;NRC;Tema;Horas;Cumplimiento\n";
     
-    rows.forEach(row => {
-        const cols = row.querySelectorAll("td");
-        // Extraemos el texto limpio de cada celda
-        const fecha = cols[0].innerText;
-        
-        const docenteNombreEl = cols[1].querySelector('strong');
-        const docente = docenteNombreEl ? docenteNombreEl.innerText.trim() : cols[1].innerText.trim();
-        const idDocente = cols[2].innerText.trim();
-        const dniDocente = cols[3].innerText.trim();
-        
-        const curso = cols[4].querySelector('small').innerText;
-        const nrc = cols[4].querySelector('span').innerText.replace('NRC: ', '');
-        const tema = cols[5].innerText;
-        const horas = cols[6].innerText;
-        const checks = cols[7].innerText;
+    window.filteredAsistencias.forEach(item => {
+        const a = item.data;
+        const fecha = item.fechaObj ? item.fechaObj.toLocaleDateString() : '---';
+        const docente = a.nombre || 'S/N';
+        const idDocente = a.id_docente || 'S/N';
+        const dniDocente = a.dni || 'S/N';
+        const curso = (a.nombreCurso || 'N/A').replace(/"/g, '""');
+        const nrc = a.nrc || '---';
+        const tema = (a.temaDictado || '---').replace(/"/g, '""');
+        const horas = a.horasTotales ? a.horasTotales.toFixed(2) : '0.00';
+        const checks = `${item.totalChecks}/6`;
 
         csv += `"${fecha}";"${docente}";"${idDocente}";"${dniDocente}";"${curso}";"${nrc}";"${tema}";"${horas}";"${checks}"\n`;
     });
@@ -574,48 +610,75 @@ async function eliminarAsistencia(id) {
     }
 }
 
+function obtenerNombreMes(fechaStr) {
+    if (!fechaStr) return "Periodo Personalizado";
+    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    const partes = fechaStr.split("-"); // Formato YYYY-MM-DD
+    if(partes.length >= 2) {
+        return meses[parseInt(partes[1]) - 1] + " " + partes[0];
+    }
+    return "Periodo Personalizado";
+}
+
 function generarReporteCierreMes() {
-    const filas = document.querySelectorAll("#tabla-reportes-body tr");
     const resumen = {};
     datosCierreMes = [];
 
-    if (filas.length === 0) {
-        return alert("No hay datos en la tabla. Filtre por fechas primero.");
+    if (!window.filteredAsistencias || window.filteredAsistencias.length === 0) {
+        return alert("No hay datos para generar el reporte. Filtre por fechas primero.");
     }
 
+    const filtroDesde = document.getElementById('filtro-desde').value;
+    const nombrePeriodo = obtenerNombreMes(filtroDesde);
+
     // Agrupar horas por docente
-    filas.forEach(fila => {
-        const docenteNombreEl = fila.cells[1].querySelector('strong');
-        const nombre = docenteNombreEl ? docenteNombreEl.innerText.trim() : fila.cells[1].innerText.split('\n')[0].trim();
-        const horas = parseFloat(fila.cells[6].innerText) || 0;
+    window.filteredAsistencias.forEach(item => {
+        const nombre = item.data.nombre || 'Desconocido';
+        const idDocente = item.data.id_docente || 'S/N';
+        const dni = item.data.dni || 'S/N';
+        const horas = item.data.horasTotales || 0;
         
-        if (resumen[nombre]) {
-            resumen[nombre] += horas;
-        } else {
-            resumen[nombre] = horas;
+        if (!resumen[nombre]) {
+            resumen[nombre] = { nombre, id: idDocente, dni, horas: 0 };
         }
+        resumen[nombre].horas += horas;
     });
 
     // Construir tabla del modal
     let html = `
         <table class="table table-bordered">
             <thead class="table-light">
-                <tr><th>Docente</th><th class="text-end">Total Horas</th></tr>
+                <tr><th>Docente</th><th>ID</th><th>DNI</th><th class="text-end">Total Horas</th></tr>
             </thead>
             <tbody>`;
     
-    for (const docente in resumen) {
-        datosCierreMes.push({ docente, horas: resumen[docente].toFixed(2) });
+    for (const key in resumen) {
+        const d = resumen[key];
+        datosCierreMes.push({ docente: d.nombre, id: d.id, dni: d.dni, horas: d.horas.toFixed(2) });
         html += `
             <tr>
-                <td>${docente}</td>
-                <td class="text-end fw-bold text-success">${resumen[docente].toFixed(2)}</td>
+                <td>${d.nombre}</td>
+                <td>${d.id}</td>
+                <td>${d.dni}</td>
+                <td class="text-end fw-bold text-success">${d.horas.toFixed(2)}</td>
             </tr>`;
     }
     html += `</tbody></table>`;
     
     // Insertar contenido
     document.getElementById('contenido-reporte-cierre').innerHTML = html;
+
+    // Actualizar botones del footer para incluir el guardado de planilla
+    const footer = document.getElementById('modal-cierre-footer');
+    if (footer) {
+        footer.innerHTML = `
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" class="btn btn-primary fw-bold" onclick="guardarPlanillaBD('${nombrePeriodo}', event)">
+                <i class="bi bi-save"></i> Guardar Planilla ${nombrePeriodo}
+            </button>
+            <button type="button" class="btn btn-success" onclick="exportarCierreExcel()">Exportar CSV</button>
+        `;
+    }
 
     // FORMA ALTERNATIVA DE ABRIR EL MODAL (Si la anterior falla)
     const modalElement = document.getElementById('modalCierreMes');
@@ -626,9 +689,9 @@ function generarReporteCierreMes() {
 function exportarCierreExcel() {
     if (datosCierreMes.length === 0) return;
 
-    let csv = "\ufeffDocente;Total Horas Acumuladas\n";
+    let csv = "\ufeffDocente;ID;DNI;Total Horas Acumuladas\n";
     datosCierreMes.forEach(d => {
-        csv += `"${d.docente}";"${d.horas}"\n`;
+        csv += `"${d.docente}";"${d.id}";"${d.dni}";"${d.horas}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -636,6 +699,129 @@ function exportarCierreExcel() {
     link.href = URL.createObjectURL(blob);
     link.download = `Cierre_Mes_Asistencia.csv`;
     link.click();
+}
+
+// --- FUNCIONES DE AUDITORÍA Y PLANILLAS ---
+
+async function guardarPlanillaBD(periodo, event) {
+    if (!auth.currentUser) return alert("No tienes permisos para esta acción.");
+    if (!datosCierreMes || datosCierreMes.length === 0) return alert("No hay datos para guardar.");
+
+    if (!confirm(`¿Estás seguro de que deseas guardar la planilla de ${periodo} de forma permanente?`)) return;
+
+    const btn = event.currentTarget;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+    btn.disabled = true;
+
+    try {
+        // Se guarda un historial crudo de cada registro exacto (auditoría profunda)
+        // SANITIZACIÓN: Limpiamos cualquier campo 'undefined' que pueda hacer que Firebase rechace la petición
+        const detallesAuditoria = window.filteredAsistencias.map(item => {
+            const dataLimpia = { ...item.data };
+            Object.keys(dataLimpia).forEach(key => {
+                if (dataLimpia[key] === undefined) delete dataLimpia[key];
+            });
+            return dataLimpia;
+        });
+
+        await db.collection('planillas').add({
+            mes: periodo,
+            fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+            creadoPor: auth.currentUser.email,
+            resumen: datosCierreMes,
+            detalles: detallesAuditoria // Copia de seguridad inmutable de las clases exactas
+        });
+
+        alert(`Planilla de ${periodo} guardada exitosamente y bloqueada para auditoría.`);
+        
+        const modalElement = document.getElementById('modalCierreMes');
+        const myModal = bootstrap.Modal.getInstance(modalElement);
+        if (myModal) myModal.hide();
+
+    } catch (e) {
+        console.error("Error al guardar planilla:", e);
+        alert("Ocurrió un error al intentar guardar la planilla en la base de datos.");
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+function cargarPlanillasGuardadas() {
+    const tbody = document.getElementById('tabla-planillas-body');
+    if (!tbody) return;
+
+    // Usamos onSnapshot para que se actualice en tiempo real sin recargar la página
+    db.collection('planillas').orderBy('fechaCreacion', 'desc').onSnapshot(snapshot => {
+        let html = '';
+        if (snapshot.empty) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No hay planillas históricas guardadas.</td></tr>';
+            return;
+        }
+
+        snapshot.forEach(doc => {
+            const p = doc.data();
+            const id = doc.id;
+            const fecha = p.fechaCreacion ? p.fechaCreacion.toDate().toLocaleString() : 'Reciente';
+            const totalDocentes = p.resumen ? p.resumen.length : 0;
+
+            html += `
+            <tr>
+                <td class="fw-bold text-primary">${p.mes}</td>
+                <td>${fecha}</td>
+                <td><span class="badge bg-secondary">${totalDocentes} Docentes</span></td>
+                <td>
+                    <i class="bi bi-lock-fill text-danger" title="Solo lectura"></i> Cerrado
+                </td>
+                <td class="text-nowrap">
+                    <button class="btn btn-sm btn-outline-success" onclick="descargarPlanillaGuardada('${id}')" title="Descargar Resumen Excel">
+                        <i class="bi bi-file-earmark-excel"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarPlanilla('${id}')" title="Eliminar Planilla Permanente">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    });
+}
+
+async function eliminarPlanilla(id) {
+    if (!auth.currentUser) return alert("Acceso denegado.");
+    if (confirm("⚠️ ATENCIÓN: Esta acción eliminará el registro histórico de esta planilla de forma definitiva. ¿Deseas continuar?")) {
+        try {
+            await db.collection('planillas').doc(id).delete();
+            // No es necesario llamar a cargarPlanillasGuardadas porque onSnapshot actualiza solo
+        } catch (error) {
+            console.error("Error al eliminar planilla:", error);
+            alert("No se pudo eliminar la planilla.");
+        }
+    }
+}
+
+async function descargarPlanillaGuardada(id) {
+    try {
+        const doc = await db.collection('planillas').doc(id).get();
+        if (!doc.exists) return alert("La planilla no fue encontrada en la base de datos.");
+        
+        const data = doc.data();
+        const resumen = data.resumen || [];
+        
+        let csv = "\ufeffDocente;ID;DNI;Total Horas Acumuladas\n";
+        resumen.forEach(d => {
+            csv += `"${d.docente}";"${d.id}";"${d.dni}";"${d.horas}"\n`;
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `Planilla_Auditoria_${data.mes.replace(' ', '_')}.csv`;
+        link.click();
+    } catch (e) {
+        console.error("Error al descargar planilla:", e);
+        alert("Ocurrió un error al descargar.");
+    }
 }
 
 // --- FUNCIONES PARA EDITAR HORAS ---
@@ -818,6 +1004,7 @@ auth.onAuthStateChanged(user => {
             loginContainer.style.display = 'none';
             dashboardContainer.style.display = 'block';
             cargarReporteAsistencias(); // Solo cargamos los datos si inició sesión
+            cargarPlanillasGuardadas(); // Carga el histórico de auditoría
         } else {
             loginContainer.style.display = 'block';
             dashboardContainer.style.display = 'none';
