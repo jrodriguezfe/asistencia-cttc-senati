@@ -178,6 +178,7 @@ async function buscarInfoNRC() {
     const infoCard = document.getElementById('nrc-info-card');
     
     let nrcValue = nrcInput.value;
+    nrcValue = nrcValue ? nrcValue.toString().trim() : '';
     
     // Filtrar para que solo acepte caracteres numéricos en caso de copiar y pegar
     if (/[^0-9]/.test(nrcValue)) {
@@ -188,6 +189,7 @@ async function buscarInfoNRC() {
     if (!nrcValue) {
         infoCard.style.display = 'none';
         cursoInput.value = '';
+        loadingText.style.display = 'none';
         return;
     }
 
@@ -195,6 +197,8 @@ async function buscarInfoNRC() {
     clearTimeout(nrcTimeout);
     nrcTimeout = setTimeout(async () => {
         loadingText.style.display = 'block';
+        loadingText.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Buscando...';
+        loadingText.className = "form-text text-primary small mt-1";
         infoCard.style.display = 'none';
         
         try {
@@ -206,21 +210,53 @@ async function buscarInfoNRC() {
                 snapshot = await dbProgramacion.collection('programaciones').where('NRC', '==', Number(nrcValue)).limit(1).get();
             }
 
+            // Si aún no lo encuentra, intentar con la propiedad en minúscula "nrc" (Texto y Número)
+            if (snapshot.empty) {
+                snapshot = await dbProgramacion.collection('programaciones').where('nrc', '==', nrcValue).limit(1).get();
+            }
+            if (snapshot.empty) {
+                snapshot = await dbProgramacion.collection('programaciones').where('nrc', '==', Number(nrcValue)).limit(1).get();
+            }
+
             if (!snapshot.empty) {
                 const data = snapshot.docs[0].data();
+                console.log("✅ NRC Encontrado en Firebase:", data); // Ayuda para depurar en consola
                 
                 cursoInput.value = data['MODULO-CURSO'] || '';
                 document.getElementById('nrc-horario').innerText = data['Horario'] || '---';
                 document.getElementById('nrc-duracion').innerText = data['duración'] || data['Duración'] || '---';
                 document.getElementById('nrc-inicio').innerText = data['Fecha de inicio'] || '---';
                 document.getElementById('nrc-fin').innerText = data['Fecha de fin'] || '---';
+                // Función auxiliar para extraer el campo ignorando mayúsculas/minúsculas o espacios accidentales
+                const getField = (obj, propName) => {
+                    const key = Object.keys(obj).find(k => k.trim().toLowerCase() === propName.trim().toLowerCase());
+                    return key ? obj[key] : null;
+                };
+                
+                cursoInput.value = getField(data, 'MODULO-CURSO') || getField(data, 'CURSO') || '';
+                document.getElementById('nrc-horario').innerText = getField(data, 'Horario') || '---';
+                document.getElementById('nrc-duracion').innerText = getField(data, 'Duración') || getField(data, 'Duracion') || '---';
+                document.getElementById('nrc-inicio').innerText = getField(data, 'Fecha de inicio') || getField(data, 'Inicio') || '---';
+                document.getElementById('nrc-fin').innerText = getField(data, 'Fecha de fin') || getField(data, 'Fin') || '---';
                 
                 infoCard.style.display = 'block';
+                loadingText.style.display = 'none';
+            } else {
+                console.warn("⚠️ NRC no encontrado en la base de datos.");
+                cursoInput.value = '';
+                infoCard.style.display = 'none';
+                
+                loadingText.style.display = 'block';
+                loadingText.innerHTML = '<i class="bi bi-exclamation-circle"></i> NRC no encontrado';
+                loadingText.className = "form-text text-danger small mt-1";
             }
         } catch (error) {
             console.error("Error al buscar información del NRC:", error);
         } finally {
             loadingText.style.display = 'none';
+            loadingText.style.display = 'block';
+            loadingText.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Error al conectar con Firebase';
+            loadingText.className = "form-text text-danger small mt-1";
         }
     }, 800); // 800 milisegundos de espera tras la última pulsación
 }
