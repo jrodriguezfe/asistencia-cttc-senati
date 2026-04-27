@@ -12,10 +12,23 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
+// Configuración de la segunda base de datos (Programaciones CTTC)
+const firebaseProgramacionConfig = {
+  apiKey: "AIzaSyB38Wbf0Q9YLz61vxQXVw1oSpMNyPVGy-c",
+  authDomain: "programacion-cttc.firebaseapp.com",
+  projectId: "programacion-cttc",
+  storageBucket: "programacion-cttc.firebasestorage.app",
+  messagingSenderId: "2776502914",
+  appId: "1:2776502914:web:6389898d92d7c4b5ba1a9b"
+};
+const appProgramacion = firebase.initializeApp(firebaseProgramacionConfig, "AppProgramaciones");
+const dbProgramacion = appProgramacion.firestore();
+
 let timerInterval;
 let startTime;
 let currentAsistenciaId;
 let datosCierreMes = []; // Variable global para guardar el último reporte generado
+let adminVerTodos = false; // Estado para limitar la vista de reportes en admin
 
 // Capturar parámetros de la URL enviados desde el Catálogo
 const params = new URLSearchParams(window.location.search);
@@ -157,6 +170,60 @@ async function startSession() {
     }
 }
 
+let nrcTimeout;
+async function buscarInfoNRC() {
+    const nrcInput = document.getElementById('nrc-input');
+    const cursoInput = document.getElementById('curso-input');
+    const loadingText = document.getElementById('nrc-loading');
+    const infoCard = document.getElementById('nrc-info-card');
+    
+    let nrcValue = nrcInput.value;
+    
+    // Filtrar para que solo acepte caracteres numéricos en caso de copiar y pegar
+    if (/[^0-9]/.test(nrcValue)) {
+        nrcValue = nrcValue.replace(/[^0-9]/g, '');
+        nrcInput.value = nrcValue;
+    }
+
+    if (!nrcValue) {
+        infoCard.style.display = 'none';
+        cursoInput.value = '';
+        return;
+    }
+
+    // Usamos debounce para no saturar Firebase con peticiones por cada tecla pulsada
+    clearTimeout(nrcTimeout);
+    nrcTimeout = setTimeout(async () => {
+        loadingText.style.display = 'block';
+        infoCard.style.display = 'none';
+        
+        try {
+            // Intentar buscar el NRC asumiendo que se guardó como Texto
+            let snapshot = await dbProgramacion.collection('programaciones').where('NRC', '==', nrcValue).limit(1).get();
+            
+            // Si no lo encuentra, intentar buscarlo asumiendo que se guardó como Número
+            if (snapshot.empty) {
+                snapshot = await dbProgramacion.collection('programaciones').where('NRC', '==', Number(nrcValue)).limit(1).get();
+            }
+
+            if (!snapshot.empty) {
+                const data = snapshot.docs[0].data();
+                
+                cursoInput.value = data['MODULO-CURSO'] || '';
+                document.getElementById('nrc-horario').innerText = data['Horario'] || '---';
+                document.getElementById('nrc-duracion').innerText = data['duración'] || data['Duración'] || '---';
+                document.getElementById('nrc-inicio').innerText = data['Fecha de inicio'] || '---';
+                document.getElementById('nrc-fin').innerText = data['Fecha de fin'] || '---';
+                
+                infoCard.style.display = 'block';
+            }
+        } catch (error) {
+            console.error("Error al buscar información del NRC:", error);
+        } finally {
+            loadingText.style.display = 'none';
+        }
+    }, 800); // 800 milisegundos de espera tras la última pulsación
+}
 
 async function endSession() {
     // 1. Verificación de seguridad de la sesión
@@ -446,10 +513,7 @@ function cargarReporteAsistencias() {
     const matrizHasta = document.getElementById('matriz-hasta')?.value || "";
 
     db.collection('asistencias').orderBy('inicio', 'desc').get().then(snapshot => {
-        let html = '';
         let sumaTotal = 0;
-        
-        // Variables para el gráfico (opcional)
         let sesionesCompletas = 0;
         let sesionesIncompletas = 0;
         
@@ -460,11 +524,11 @@ function cargarReporteAsistencias() {
         let uniqueNombres = new Set();
         let uniqueNRCs = new Set();
 
+        // 1. Procesar todos los documentos, filtrar y poblar los arreglos de datos
         snapshot.forEach(doc => {
             const a = doc.data();
             const id = doc.id;
 
-            // 2. Considerar estados de finalización manual y automática
             if (a.estado === "finalizado" || a.estado === "finalizado_auto") {
                 if (a.nombre) uniqueNombres.add(a.nombre.trim());
                 if (a.nrc) uniqueNRCs.add(a.nrc.toString().trim());
@@ -472,7 +536,6 @@ function cargarReporteAsistencias() {
                 const fechaObj = a.inicio ? a.inicio.toDate() : null;
                 const fechaISO = fechaObj ? fechaObj.toISOString().split('T')[0] : '';
                 
-                // 3. Aplicación de Filtros
                 let cumpleNombre = filtroNombre === "" || a.nombre.trim().toLowerCase() === filtroNombre;
                 let cumpleNRC = filtroNRC === "" || (a.nrc && a.nrc.toString().trim().toLowerCase() === filtroNRC);
                 let cumpleDesde = filtroDesde ? (fechaISO >= filtroDesde) : true;
@@ -481,7 +544,6 @@ function cargarReporteAsistencias() {
                 if (cumpleNombre && cumpleNRC && cumpleDesde && cumpleHasta) {
                     sumaTotal += a.horasTotales;
                     
-                    // Almacenamos los datos para edición local instantánea
                     window.datosEdicion[id] = { horas: a.horasTotales, motivo: a.comentariosEdit || '' };
                     
                     const checks = a.checklist || {};
@@ -495,37 +557,6 @@ function cargarReporteAsistencias() {
                         fechaObj: fechaObj,
                         totalChecks: totalChecks
                     });
-
-                    // 4. Lógica Visual para Discrepancias y Cierres Auto
-                    const claseFila = a.estado === "finalizado_auto" ? "table-warning" : "";
-                    const badgeAlerta = a.estado === "finalizado_auto" ? 
-                        '<i class="bi bi-exclamation-triangle-fill text-danger" title="Cierre Automático (8h)"></i>' : "";
-
-                    html += `<tr class="${claseFila}">
-                        <td>${fechaObj ? fechaObj.toLocaleDateString() : '---'}</td>
-                        <td><strong>${a.nombre}</strong> ${badgeAlerta}</td>
-                        <td>${a.id_docente || 'S/N'}</td>
-                        <td>${a.dni || 'S/N'}</td>
-                        <td>
-                            <small class="d-block fw-bold">${a.nombreCurso || 'N/A'}</small>
-                            <span class="badge bg-secondary">NRC: ${a.nrc || '---'}</span>
-                            ${a.comentariosEdit ? `<div class="text-danger small mt-1" style="font-size:0.75rem"><strong>Ajuste:</strong> ${a.comentariosEdit}</div>` : ''}
-                        </td>
-                        <td>${a.temaDictado || '---'}</td>
-                        <td class="fw-bold text-primary">${a.horasTotales.toFixed(2)}</td>
-                        <td>
-                            <span class="${totalChecks === 6 ? 'text-success' : 'text-muted'} fw-bold">${totalChecks}/6</span> 
-                            <i class="bi bi-patch-check-fill ${totalChecks === 6 ? 'text-success' : 'text-light'}"></i>
-                        </td>
-                        <td class="text-nowrap">
-                            <button class="btn btn-sm btn-warning" onclick="abrirModalEdicion('${id}')">
-                                <i class="bi bi-pencil-square"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="eliminarAsistencia('${id}')">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    </tr>`;
                 }
 
                 // Lógica separada para poblar la matriz con sus propios filtros de fechas
@@ -546,25 +577,88 @@ function cargarReporteAsistencias() {
             }
         });
 
+        // 2. Determinar qué registros mostrar y construir el HTML de la tabla
+        const totalFiltrado = window.filteredAsistencias.length;
+        const registrosParaMostrar = adminVerTodos ? window.filteredAsistencias : window.filteredAsistencias.slice(0, 10);
+        
+        let html = '';
+        registrosParaMostrar.forEach(item => {
+            const a = item.data;
+            const id = item.id;
+            const fechaObj = item.fechaObj;
+            const totalChecks = item.totalChecks;
+
+            const claseFila = a.estado === "finalizado_auto" ? "table-warning" : "";
+            const badgeAlerta = a.estado === "finalizado_auto" ? 
+                '<i class="bi bi-exclamation-triangle-fill text-danger" title="Cierre Automático (8h)"></i>' : "";
+
+            html += `<tr class="${claseFila}">
+                <td>${fechaObj ? fechaObj.toLocaleDateString() : '---'}</td>
+                <td><strong>${a.nombre}</strong> ${badgeAlerta}</td>
+                <td>${a.id_docente || 'S/N'}</td>
+                <td>${a.dni || 'S/N'}</td>
+                <td>
+                    <small class="d-block fw-bold">${a.nombreCurso || 'N/A'}</small>
+                    <span class="badge bg-secondary">NRC: ${a.nrc || '---'}</span>
+                    ${a.comentariosEdit ? `<div class="text-danger small mt-1" style="font-size:0.75rem"><strong>Ajuste:</strong> ${a.comentariosEdit}</div>` : ''}
+                </td>
+                <td>${a.temaDictado || '---'}</td>
+                <td class="fw-bold text-primary">${a.horasTotales.toFixed(2)}</td>
+                <td>
+                    <span class="${totalChecks === 6 ? 'text-success' : 'text-muted'} fw-bold">${totalChecks}/6</span> 
+                    <i class="bi bi-patch-check-fill ${totalChecks === 6 ? 'text-success' : 'text-light'}"></i>
+                </td>
+                <td class="text-nowrap">
+                    <button class="btn btn-sm btn-warning" onclick="abrirModalEdicion('${id}')">
+                        <i class="bi bi-pencil-square"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarAsistencia('${id}')">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>`;
+        });
+
         container.innerHTML = html;
         document.getElementById('total-horas-acumuladas').innerText = sumaTotal.toFixed(2);
         
-        // Actualizar listas desplegables
+        // 3. Actualizar controles de vista y resumen
+        const summaryContainer = document.getElementById('report-summary');
+        const controlsContainer = document.getElementById('report-view-controls');
+
+        if (summaryContainer && controlsContainer) {
+            if (totalFiltrado > 10) {
+                if (adminVerTodos) {
+                    summaryContainer.innerHTML = `Mostrando <strong>${totalFiltrado}</strong> registros.`;
+                    controlsContainer.innerHTML = `<button class="btn btn-sm btn-link" onclick="toggleAdminView()">Ver solo los últimos 10</button>`;
+                } else {
+                    summaryContainer.innerHTML = `Mostrando los últimos <strong>10</strong> de <strong>${totalFiltrado}</strong> registros.`;
+                    controlsContainer.innerHTML = `<button class="btn btn-sm btn-link" onclick="toggleAdminView()">Ver todos los registros (${totalFiltrado})</button>`;
+                }
+            } else {
+                summaryContainer.innerHTML = `Mostrando <strong>${totalFiltrado}</strong> registros.`;
+                controlsContainer.innerHTML = '';
+            }
+        }
+
+        // 4. Actualizar el resto de la UI
         actualizarDropdown('filtro-nombre', uniqueNombres, filtroNombreValue);
         actualizarDropdown('filtro-nrc', uniqueNRCs, filtroNRCValue);
 
-        // Actualizar contador grande y gráfico si los tienes
         if(document.getElementById('total-horas-grande')) {
             document.getElementById('total-horas-grande').innerText = sumaTotal.toFixed(2);
         }
         if(typeof actualizarGrafico === "function") {
             actualizarGrafico(sesionesCompletas, sesionesIncompletas);
         }
-        
-        renderizarMatriz(registrosMatriz); // Llama a la generación de la matriz
+        renderizarMatriz(registrosMatriz);
     });
 }
 
+function toggleAdminView() {
+    adminVerTodos = !adminVerTodos;
+    cargarReporteAsistencias();
+}
 
 function actualizarDropdown(id, setValores, valorActual) {
     const select = document.getElementById(id);
