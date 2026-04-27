@@ -261,6 +261,21 @@ async function verMisRegistros() {
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
+                        <!-- Filtros de fecha -->
+                        <div class="row g-2 mb-3 bg-light p-2 rounded border shadow-sm">
+                            <div class="col-md-5">
+                                <label class="form-label small fw-bold mb-0">Desde:</label>
+                                <input type="date" id="mis-registros-desde" class="form-control form-control-sm" onchange="verMisRegistros()">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small fw-bold mb-0">Hasta:</label>
+                                <input type="date" id="mis-registros-hasta" class="form-control form-control-sm" onchange="verMisRegistros()">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="btn btn-sm btn-outline-secondary w-100" onclick="limpiarFiltrosMisRegistros()">Limpiar</button>
+                            </div>
+                        </div>
+
                         <!-- Resumen visual -->
                         <div id="resumen-grafico" class="mb-3"></div>
                         
@@ -302,6 +317,9 @@ async function verMisRegistros() {
     document.getElementById('tabla-mis-registros').innerHTML = '<tr><td colspan="5" class="py-3">Cargando registros... <span class="spinner-border spinner-border-sm"></span></td></tr>';
     document.getElementById('resumen-grafico').innerHTML = '';
 
+    const filtroDesde = document.getElementById('mis-registros-desde') ? document.getElementById('mis-registros-desde').value : "";
+    const filtroHasta = document.getElementById('mis-registros-hasta') ? document.getElementById('mis-registros-hasta').value : "";
+
     try {
         const snapshot = await db.collection('asistencias').where("uid", "==", docenteUID).get();
         let registros = [];
@@ -312,7 +330,15 @@ async function verMisRegistros() {
             const isFinalizado = data.estado === "finalizado" || data.estado === "finalizado_auto" || data.fin != null;
             
             if (isFinalizado) {
-                registros.push(data);
+                const fechaObj = data.inicio ? data.inicio.toDate() : null;
+                const fechaISO = fechaObj ? fechaObj.toISOString().split('T')[0] : '';
+                
+                let cumpleDesde = filtroDesde ? (fechaISO >= filtroDesde) : true;
+                let cumpleHasta = filtroHasta ? (fechaISO <= filtroHasta) : true;
+                
+                if (cumpleDesde && cumpleHasta) {
+                    registros.push(data);
+                }
             }
         });
 
@@ -330,7 +356,7 @@ async function verMisRegistros() {
         document.getElementById('resumen-grafico').innerHTML = `
             <div class="alert alert-success d-flex justify-content-between align-items-center py-2 border-0 shadow-sm" style="background-color: #e8f5e9;">
                 <div>
-                    <h6 class="mb-0 fw-bold text-success"><i class="bi bi-calendar2-check"></i> Total Histórico de Horas</h6>
+                    <h6 class="mb-0 fw-bold text-success"><i class="bi bi-calendar2-check"></i> ${filtroDesde || filtroHasta ? 'Total de Horas (Filtradas)' : 'Total Histórico de Horas'}</h6>
                 </div>
                 <h4 class="mb-0 fw-bold text-success">${totalHoras.toFixed(2)} hrs</h4>
             </div>
@@ -345,8 +371,9 @@ async function verMisRegistros() {
         }
 
         let html = '';
-        // Mostramos solo los últimos 50 registros para evitar sobrecargar el modal
-        const registrosMostrar = registros.slice(0, 50);
+        // Mostramos todos si hay filtro, sino limitamos a 50 para no sobrecargar el modal
+        const limiteMostrar = (filtroDesde || filtroHasta) ? registros.length : 50;
+        const registrosMostrar = registros.slice(0, limiteMostrar);
 
         registrosMostrar.forEach(r => {
             const fecha = r.inicio ? r.inicio.toDate().toLocaleDateString() : '---';
@@ -371,6 +398,12 @@ async function verMisRegistros() {
         console.error("Error al obtener registros:", error);
         document.getElementById('tabla-mis-registros').innerHTML = '<tr><td colspan="5" class="text-danger py-3">Error al cargar los registros. Revisa tu conexión a internet.</td></tr>';
     }
+}
+
+function limpiarFiltrosMisRegistros() {
+    if (document.getElementById('mis-registros-desde')) document.getElementById('mis-registros-desde').value = '';
+    if (document.getElementById('mis-registros-hasta')) document.getElementById('mis-registros-hasta').value = '';
+    verMisRegistros();
 }
 
 function descargarMisRegistros() {
