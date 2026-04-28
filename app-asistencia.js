@@ -254,17 +254,29 @@ async function buscarInfoNRC() {
                 try {
                     const asistenciasSnap = await db.collection('asistencias')
                         .where('nrc', '==', nrcValue)
-                        .where('estado', 'in', ['finalizado', 'finalizado_auto'])
-                        .orderBy('inicio', 'desc')
-                        .limit(1)
                         .get();
 
                     const sesionInput = document.getElementById('sesion-input');
                     const temaInput = document.getElementById('tema-input');
 
                     if (sesionInput && temaInput) { // Solo proceder si los campos existen
-                        if (!asistenciasSnap.empty) {
-                            const lastAsistencia = asistenciasSnap.docs[0].data();
+                        let registros = [];
+                        asistenciasSnap.forEach(doc => {
+                            const d = doc.data();
+                            if (d.estado === 'finalizado' || d.estado === 'finalizado_auto') {
+                                registros.push(d);
+                            }
+                        });
+
+                        if (registros.length > 0) {
+                            // Ordenar descendentemente por fecha para obtener el último
+                            registros.sort((a, b) => {
+                                const dateA = a.inicio ? a.inicio.toDate() : new Date(0);
+                                const dateB = b.inicio ? b.inicio.toDate() : new Date(0);
+                                return dateB - dateA;
+                            });
+
+                            const lastAsistencia = registros[0];
                             const lastSesion = lastAsistencia.numeroSesion || '';
                             const lastTema = lastAsistencia.temaDictado || '';
 
