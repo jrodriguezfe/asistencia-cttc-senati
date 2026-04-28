@@ -283,7 +283,7 @@ async function buscarInfoNRC() {
                             const lastTema = lastAsistencia.temaDictado || '';
 
                             if (lastSesion) {
-                                sesionInput.placeholder = `La última sesión registrada fue: ${lastSesion}`;
+                                sesionInput.placeholder = `Ultimo registro: ${lastSesion}`;
                                 sesionInput.title = `La última sesión registrada fue: ${lastSesion}`;
                             } else {
                                 sesionInput.placeholder = "Ej: 1";
