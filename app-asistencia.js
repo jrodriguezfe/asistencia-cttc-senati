@@ -221,12 +221,6 @@ async function buscarInfoNRC() {
             if (!snapshot.empty) {
                 const data = snapshot.docs[0].data();
                 console.log("✅ NRC Encontrado en Firebase:", data); // Ayuda para depurar en consola
-                
-                cursoInput.value = data['MODULO-CURSO'] || '';
-                document.getElementById('nrc-horario').innerText = data['Horario'] || '---';
-                document.getElementById('nrc-duracion').innerText = data['duración'] || data['Duración'] || '---';
-                document.getElementById('nrc-inicio').innerText = data['Fecha de inicio'] || '---';
-                document.getElementById('nrc-fin').innerText = data['Fecha de fin'] || '---';
                 // Función auxiliar para extraer el campo ignorando mayúsculas/minúsculas o espacios accidentales
                 const getField = (obj, propName) => {
                     const key = Object.keys(obj).find(k => k.trim().toLowerCase() === propName.trim().toLowerCase());
@@ -252,10 +246,8 @@ async function buscarInfoNRC() {
             }
         } catch (error) {
             console.error("Error al buscar información del NRC:", error);
-        } finally {
-            loadingText.style.display = 'none';
             loadingText.style.display = 'block';
-            loadingText.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Error al conectar con Firebase';
+            loadingText.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Error: ${error.message || 'Fallo de conexión'}`;
             loadingText.className = "form-text text-danger small mt-1";
         }
     }, 800); // 800 milisegundos de espera tras la última pulsación
