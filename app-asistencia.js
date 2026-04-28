@@ -171,6 +171,19 @@ async function startSession() {
 }
 
 let nrcTimeout;
+
+// Función para limpiar los placeholders de sesión y tema
+function resetSessionPlaceholders() {
+    const sesionInput = document.getElementById('sesion-input');
+    const temaInput = document.getElementById('tema-input');
+    if (sesionInput) {
+        sesionInput.placeholder = "Ej: 1";
+    }
+    if (temaInput) {
+        temaInput.placeholder = "Ej: Introducción a la seguridad...";
+    }
+}
+
 async function buscarInfoNRC() {
     const nrcInput = document.getElementById('nrc-input');
     const cursoInput = document.getElementById('curso-input');
@@ -190,6 +203,7 @@ async function buscarInfoNRC() {
         infoCard.style.display = 'none';
         cursoInput.value = '';
         loadingText.style.display = 'none';
+        resetSessionPlaceholders();
         return;
     }
 
@@ -235,6 +249,47 @@ async function buscarInfoNRC() {
                 
                 infoCard.style.display = 'block';
                 loadingText.style.display = 'none';
+
+                // --- INICIO: Lógica para sugerir siguiente sesión y tema ---
+                try {
+                    const asistenciasSnap = await db.collection('asistencias')
+                        .where('nrc', '==', nrcValue)
+                        .where('estado', 'in', ['finalizado', 'finalizado_auto'])
+                        .orderBy('inicio', 'desc')
+                        .limit(1)
+                        .get();
+
+                    const sesionInput = document.getElementById('sesion-input');
+                    const temaInput = document.getElementById('tema-input');
+
+                    if (sesionInput && temaInput) { // Solo proceder si los campos existen
+                        if (!asistenciasSnap.empty) {
+                            const lastAsistencia = asistenciasSnap.docs[0].data();
+                            const lastSesion = lastAsistencia.numeroSesion || '';
+                            const lastTema = lastAsistencia.temaDictado || '';
+
+                            if (lastSesion) {
+                                const nextSesion = parseInt(lastSesion, 10) + 1;
+                                sesionInput.placeholder = !isNaN(nextSesion) ? `Sugerencia: ${nextSesion} (última fue ${lastSesion})` : `Última sesión: ${lastSesion}`;
+                            } else {
+                                sesionInput.placeholder = "Ej: 1";
+                            }
+                            
+                            if (lastTema) {
+                                temaInput.placeholder = `Último tema: ${lastTema}`;
+                            } else {
+                                temaInput.placeholder = "Ej: Introducción a la seguridad...";
+                            }
+                        } else {
+                            // No hay registros previos para este NRC
+                            sesionInput.placeholder = "Ej: 1 (Primer registro para este NRC)";
+                            temaInput.placeholder = "Ej: Introducción a la seguridad...";
+                        }
+                    }
+                } catch (err) {
+                    console.warn("No se pudo buscar la última sesión para sugerencias:", err);
+                }
+                // --- FIN: Lógica para sugerir siguiente sesión y tema ---
             } else {
                 console.warn("⚠️ NRC no encontrado en la base de datos.");
                 cursoInput.value = '';
@@ -243,12 +298,14 @@ async function buscarInfoNRC() {
                 loadingText.style.display = 'block';
                 loadingText.innerHTML = '<i class="bi bi-exclamation-circle"></i> NRC no encontrado';
                 loadingText.className = "form-text text-danger small mt-1";
+                resetSessionPlaceholders();
             }
         } catch (error) {
             console.error("Error al buscar información del NRC:", error);
             loadingText.style.display = 'block';
             loadingText.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Error: ${error.message || 'Fallo de conexión'}`;
             loadingText.className = "form-text text-danger small mt-1";
+            resetSessionPlaceholders();
         }
     }, 800); // 800 milisegundos de espera tras la última pulsación
 }
