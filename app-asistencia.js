@@ -178,9 +178,11 @@ function resetSessionPlaceholders() {
     const temaInput = document.getElementById('tema-input');
     if (sesionInput) {
         sesionInput.placeholder = "Ej: 1";
+        sesionInput.title = "";
     }
     if (temaInput) {
         temaInput.placeholder = "Ej: Introducción a la seguridad...";
+        temaInput.title = "";
     }
 }
 
@@ -281,20 +283,22 @@ async function buscarInfoNRC() {
                             const lastTema = lastAsistencia.temaDictado || '';
 
                             if (lastSesion) {
-                                const nextSesion = parseInt(lastSesion, 10) + 1;
-                                sesionInput.placeholder = !isNaN(nextSesion) ? `Sugerencia: ${nextSesion} (última fue ${lastSesion})` : `Última sesión: ${lastSesion}`;
+                                sesionInput.placeholder = `La última sesión registrada fue: ${lastSesion}`;
+                                sesionInput.title = `La última sesión registrada fue: ${lastSesion}`;
                             } else {
                                 sesionInput.placeholder = "Ej: 1";
                             }
                             
                             if (lastTema) {
                                 temaInput.placeholder = `Último tema: ${lastTema}`;
+                                temaInput.title = `Último tema: ${lastTema}`;
                             } else {
                                 temaInput.placeholder = "Ej: Introducción a la seguridad...";
                             }
                         } else {
                             // No hay registros previos para este NRC
-                            sesionInput.placeholder = "Ej: 1 (Primer registro para este NRC)";
+                            sesionInput.placeholder = "Ej: 1 (Primer registro)";
+                            sesionInput.title = "Primer registro para este NRC";
                             temaInput.placeholder = "Ej: Introducción a la seguridad...";
                         }
                     }

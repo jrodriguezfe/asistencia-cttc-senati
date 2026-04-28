@@ -26,3 +26,12 @@
 @media (max-width: 576px) {
     #timer-display { font-size: 3.5rem; }
 }
+
+/* Ajustes para asegurar que se lean completos los textos de ayuda de memoria */
+#sesion-input::placeholder,
+#tema-input::placeholder {
+    font-size: 0.85rem;
+}
+#sesion-input {
+    min-width: 265px; /* Expande la casilla para acomodar "La última sesión registrada fue: " */
+}
