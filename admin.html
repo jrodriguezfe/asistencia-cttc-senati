@@ -53,25 +53,37 @@
                         <option value="">Todos</option>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Filtrar por DNI</label>
+                    <select id="filtro-dni" class="form-select" onchange="cargarReporteAsistencias()">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Filtrar por ID</label>
+                    <select id="filtro-id" class="form-select" onchange="cargarReporteAsistencias()">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label fw-bold">Filtrar por NRC</label>
                     <select id="filtro-nrc" class="form-select" onchange="cargarReporteAsistencias()">
                         <option value="">Todos</option>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-4">
                     <label class="form-label fw-bold">Fecha Inicio</label>
                     <input type="date" id="filtro-desde" class="form-control" onchange="cargarReporteAsistencias()">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label class="form-label fw-bold">Fecha Fin</label>
                     <input type="date" id="filtro-hasta" class="form-control" onchange="cargarReporteAsistencias()">
                 </div>
-                <div class="col-md-2 d-flex flex-column gap-2">
-                    <button class="btn btn-outline-secondary w-100" onclick="limpiarFiltros()">
+                <div class="col-md-4 d-flex align-items-end gap-2">
+                    <button class="btn btn-outline-secondary w-50" onclick="limpiarFiltros()">
                         <i class="bi bi-eraser"></i> Limpiar
                     </button>
-                    <button class="btn btn-primary w-100 fw-bold" onclick="generarReporteCierreMes()">
+                    <button class="btn btn-primary w-50 fw-bold" onclick="generarReporteCierreMes()">
                         <i class="bi bi-calculator"></i> Cierre de Mes
                     </button>
                 </div>
@@ -197,6 +209,10 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" id="edit-id">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nombre del Docente:</label>
+                        <input type="text" id="edit-nombre" class="form-control">
+                    </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Horas Registradas:</label>
                         <input type="number" id="edit-horas" class="form-control" step="0.01">

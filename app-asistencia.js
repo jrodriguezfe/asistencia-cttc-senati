@@ -606,6 +606,10 @@ function cargarReporteAsistencias() {
     const filtroNombre = filtroNombreValue.toLowerCase();
     const filtroNRCValue = document.getElementById('filtro-nrc')?.value || "";
     const filtroNRC = filtroNRCValue.trim().toLowerCase(); 
+    const filtroDniValue = document.getElementById('filtro-dni')?.value || "";
+    const filtroDni = filtroDniValue.trim().toLowerCase();
+    const filtroIdValue = document.getElementById('filtro-id')?.value || "";
+    const filtroId = filtroIdValue.trim().toLowerCase();
     const filtroDesde = document.getElementById('filtro-desde').value;
     const filtroHasta = document.getElementById('filtro-hasta').value;
 
@@ -624,6 +628,8 @@ function cargarReporteAsistencias() {
 
         let uniqueNombres = new Set();
         let uniqueNRCs = new Set();
+        let uniqueDNIs = new Set();
+        let uniqueIDs = new Set();
 
         // 1. Procesar todos los documentos, filtrar y poblar los arreglos de datos
         snapshot.forEach(doc => {
@@ -633,20 +639,23 @@ function cargarReporteAsistencias() {
             if (a.estado === "finalizado" || a.estado === "finalizado_auto") {
                 if (a.nombre) uniqueNombres.add(a.nombre.trim());
                 if (a.nrc) uniqueNRCs.add(a.nrc.toString().trim());
+                if (a.dni) uniqueDNIs.add(a.dni.toString().trim());
+                if (a.id_docente) uniqueIDs.add(a.id_docente.toString().trim());
 
                 const fechaObj = a.inicio ? a.inicio.toDate() : null;
                 const fechaISO = fechaObj ? fechaObj.toISOString().split('T')[0] : '';
                 
                 let cumpleNombre = filtroNombre === "" || a.nombre.trim().toLowerCase() === filtroNombre;
                 let cumpleNRC = filtroNRC === "" || (a.nrc && a.nrc.toString().trim().toLowerCase() === filtroNRC);
+                let cumpleDNI = filtroDni === "" || (a.dni && a.dni.toString().trim().toLowerCase() === filtroDni);
+                let cumpleID = filtroId === "" || (a.id_docente && a.id_docente.toString().trim().toLowerCase() === filtroId);
                 let cumpleDesde = filtroDesde ? (fechaISO >= filtroDesde) : true;
                 let cumpleHasta = filtroHasta ? (fechaISO <= filtroHasta) : true;
 
-                if (cumpleNombre && cumpleNRC && cumpleDesde && cumpleHasta) {
+                if (cumpleNombre && cumpleNRC && cumpleDNI && cumpleID && cumpleDesde && cumpleHasta) {
                     sumaTotal += a.horasTotales;
                     
-                    window.datosEdicion[id] = { horas: a.horasTotales, motivo: a.comentariosEdit || '' };
-                    
+                    window.datosEdicion[id] = { nombre: a.nombre || '', horas: a.horasTotales, motivo: a.comentariosEdit || '' };
                     const checks = a.checklist || {};
                     const totalChecks = Object.values(checks).filter(v => v === true).length;
                     if(totalChecks === 6) sesionesCompletas++; else sesionesIncompletas++;
@@ -745,6 +754,8 @@ function cargarReporteAsistencias() {
         // 4. Actualizar el resto de la UI
         actualizarDropdown('filtro-nombre', uniqueNombres, filtroNombreValue);
         actualizarDropdown('filtro-nrc', uniqueNRCs, filtroNRCValue);
+        actualizarDropdown('filtro-dni', uniqueDNIs, filtroDniValue);
+        actualizarDropdown('filtro-id', uniqueIDs, filtroIdValue);
 
         if(document.getElementById('total-horas-grande')) {
             document.getElementById('total-horas-grande').innerText = sumaTotal.toFixed(2);
@@ -780,6 +791,8 @@ function actualizarDropdown(id, setValores, valorActual) {
 function limpiarFiltros() {
     document.getElementById('filtro-nombre').value = '';
     if (document.getElementById('filtro-nrc')) document.getElementById('filtro-nrc').value = '';
+    if (document.getElementById('filtro-dni')) document.getElementById('filtro-dni').value = '';
+    if (document.getElementById('filtro-id')) document.getElementById('filtro-id').value = '';
     document.getElementById('filtro-desde').value = '';
     document.getElementById('filtro-hasta').value = '';
     cargarReporteAsistencias();
@@ -1062,6 +1075,7 @@ function abrirModalEdicion(id) {
     }
 
     document.getElementById('edit-id').value = id;
+    if (document.getElementById('edit-nombre')) document.getElementById('edit-nombre').value = data.nombre || '';
     document.getElementById('edit-horas').value = data.horas || 0;
     document.getElementById('edit-motivo').value = data.motivo || '';
     
@@ -1078,6 +1092,7 @@ async function guardarEdicionHora() {
     }
 
     const id = document.getElementById('edit-id').value;
+    const nombre = document.getElementById('edit-nombre') ? document.getElementById('edit-nombre').value.trim() : null;
     const horas = parseFloat(document.getElementById('edit-horas').value);
     const motivo = document.getElementById('edit-motivo').value;
 
@@ -1086,10 +1101,15 @@ async function guardarEdicionHora() {
     }
 
     try {
-        await db.collection('asistencias').doc(id).update({
+        const updateData = {
             horasTotales: horas,
             comentariosEdit: motivo
-        });
+        };
+        if (nombre !== null) { 
+            updateData.nombre = nombre;
+        }
+        
+        await db.collection('asistencias').doc(id).update(updateData);
         
         const modalElement = document.getElementById('modalEditarHora');
         const myModal = bootstrap.Modal.getInstance(modalElement);
