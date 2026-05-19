@@ -637,6 +637,9 @@ function cargarReporteAsistencias() {
             const id = doc.id;
 
             if (a.estado === "finalizado" || a.estado === "finalizado_auto") {
+                // Redondear el tiempo trabajado al límite inferior de cada media hora (piso)
+                a.horasTotales = Math.floor((a.horasTotales || 0) * 2) / 2;
+
                 if (a.nombre) uniqueNombres.add(a.nombre.trim());
                 if (a.nrc) uniqueNRCs.add(a.nrc.toString().trim());
                 if (a.dni) uniqueDNIs.add(a.dni.toString().trim());
