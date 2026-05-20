@@ -72,6 +72,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('display-uid').parentElement.style.display = 'none';
     }
 
+    if (docenteDNI) {
+        verificarFirmasPendientes();
+    }
+
     // --- NUEVO: Límite de palabras para Actividad/Tema ---
     const temaInput = document.getElementById('tema-input');
     if (temaInput) {
@@ -529,6 +533,9 @@ async function verMisRegistros() {
             const isFinalizado = data.estado === "finalizado" || data.estado === "finalizado_auto" || data.fin != null;
             
             if (isFinalizado) {
+                // Redondear el tiempo trabajado al límite inferior de cada media hora (piso) igual que en admin
+                data.horasTotales = Math.floor((data.horasTotales || 0) * 2) / 2;
+                
                 const fechaObj = data.inicio ? data.inicio.toDate() : null;
                 const fechaISO = fechaObj ? fechaObj.toISOString().split('T')[0] : '';
                 
@@ -1049,6 +1056,9 @@ function cargarPlanillasGuardadas() {
                     <i class="bi bi-lock-fill text-danger" title="Solo lectura"></i> Cerrado
                 </td>
                 <td class="text-nowrap">
+                    <button class="btn btn-sm btn-outline-primary" onclick="abrirModalFirmas('${id}', '${p.mes}')" title="Gestionar Firmas PDF">
+                        <i class="bi bi-pen"></i>
+                    </button>
                     <button class="btn btn-sm btn-outline-success" onclick="descargarPlanillaGuardada('${id}')" title="Descargar Resumen Excel">
                         <i class="bi bi-file-earmark-excel"></i>
                     </button>
@@ -1096,6 +1106,380 @@ async function descargarPlanillaGuardada(id) {
     } catch (e) {
         console.error("Error al descargar planilla:", e);
         alert("Ocurrió un error al descargar.");
+    }
+}
+
+// --- FUNCIONES DE FIRMAS Y PDF ---
+
+let currentPlanillaId = null;
+let currentPlanillaMes = null;
+let firmasDocs = [];
+let firmaJefeBase64 = null;
+let firmaDocenteBase64 = null;
+let currentFirmaDocId = null;
+
+function previewFirma(event, imgId) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const imgElement = document.getElementById(imgId);
+            if(imgElement) {
+                imgElement.src = e.target.result;
+                imgElement.style.display = 'inline-block';
+            }
+            if(imgId === 'preview-firma-jefe') firmaJefeBase64 = e.target.result;
+            if(imgId === 'preview-firma-docente') firmaDocenteBase64 = e.target.result;
+        }
+        reader.readAsDataURL(file);
+    }
+}
+
+function abrirModalFirmas(id, mes) {
+    currentPlanillaId = id;
+    currentPlanillaMes = mes;
+    document.getElementById('firma-planilla-mes').innerText = mes;
+    
+    const modalElement = document.getElementById('modalFirmasPlanilla');
+    const myModal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    myModal.show();
+    
+    cargarEstadoFirmas();
+}
+
+function cargarEstadoFirmas() {
+    const tbody = document.getElementById('tabla-firmas-body');
+    if(!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><span class="spinner-border spinner-border-sm"></span> Cargando estado de firmas...</td></tr>';
+    
+    db.collection('firmas_planillas').where('planillaId', '==', currentPlanillaId).onSnapshot(snap => {
+        firmasDocs = [];
+        let html = '';
+        if(snap.empty) {
+            html = '<tr><td colspan="7" class="text-center text-muted py-4">No se han generado solicitudes de firma para esta planilla. Haz clic en "Generar/Enviar Solicitudes".</td></tr>';
+        } else {
+            snap.forEach(doc => {
+                const data = doc.data();
+                firmasDocs.push({id: doc.id, ...data});
+                const estadoDocente = data.firmaDocente ? '<span class="badge bg-success">Firmado</span>' : '<span class="badge bg-warning text-dark">Pendiente</span>';
+                const estadoJefe = data.firmaJefe ? '<span class="badge bg-success">Firmado</span>' : '<span class="badge bg-warning text-dark">Pendiente</span>';
+                let estadoGral = '';
+                if(data.firmaDocente && data.firmaJefe) estadoGral = '<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> Completado</span>';
+                else estadoGral = '<span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Pendiente</span>';
+                
+                html += `<tr>
+                    <td class="fw-bold">${data.docenteNombre}</td>
+                    <td>${data.docenteDni}</td>
+                    <td class="text-primary fw-bold">${Number(data.horasTotales).toFixed(2)}</td>
+                    <td>${estadoDocente}</td>
+                    <td>${estadoJefe}</td>
+                    <td>${estadoGral}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger" onclick="generarPDF('${doc.id}')" ${!(data.firmaDocente && data.firmaJefe) ? 'disabled title="Faltan firmas para generar PDF"' : 'title="Descargar PDF Final"'}>
+                            <i class="bi bi-file-earmark-pdf-fill"></i> PDF
+                        </button>
+                    </td>
+                </tr>`;
+            });
+        }
+        tbody.innerHTML = html;
+    });
+}
+
+async function generarSolicitudesFirma() {
+    if(!confirm("¿Deseas generar solicitudes de firma para todos los docentes de esta planilla que aún no tienen una?")) return;
+    try {
+        const docRef = await db.collection('planillas').doc(currentPlanillaId).get();
+        if(!docRef.exists) return alert("Error: No se encontró la planilla origen.");
+        const planillaData = docRef.data();
+        
+        const resumen = planillaData.resumen || [];
+        const detallesTotales = planillaData.detalles || [];
+        
+        let generados = 0;
+        for(let r of resumen) {
+            const existe = firmasDocs.find(f => f.docenteDni === r.dni);
+            if(!existe) {
+                const detallesDocente = detallesTotales.filter(d => d.dni === r.dni);
+                await db.collection('firmas_planillas').add({
+                    planillaId: currentPlanillaId,
+                    mes: currentPlanillaMes,
+                    docenteNombre: r.docente,
+                    docenteId: r.id,
+                    docenteDni: r.dni,
+                    horasTotales: r.horas,
+                    detalles: detallesDocente,
+                    firmaJefe: null,
+                    firmaDocente: null,
+                    fechaCreacion: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                generados++;
+            }
+        }
+        alert(`Se generaron ${generados} nuevas solicitudes de firma para los docentes.`);
+    } catch(e) {
+        console.error("Error al generar solicitudes:", e);
+        alert("Ocurrió un error al generar las solicitudes.");
+    }
+}
+
+function firmarComoJefeMasivo() {
+    const modalElement = document.getElementById('modalSubirFirma');
+    const myModal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    
+    document.getElementById('input-firma-jefe').value = '';
+    document.getElementById('preview-firma-jefe').style.display = 'none';
+    firmaJefeBase64 = null;
+    
+    myModal.show();
+}
+
+async function guardarFirmaJefe() {
+    if(!firmaJefeBase64) return alert("Por favor, selecciona una imagen de tu firma primero.");
+    const pendientes = firmasDocs.filter(f => !f.firmaJefe);
+    if(pendientes.length === 0) {
+        alert("No hay documentos en esta planilla que estén pendientes de tu firma.");
+        return;
+    }
+    
+    try {
+        const batch = db.batch();
+        pendientes.forEach(p => {
+            const ref = db.collection('firmas_planillas').doc(p.id);
+            batch.update(ref, { firmaJefe: firmaJefeBase64 });
+        });
+        await batch.commit();
+        
+        alert(`¡Firma aplicada exitosamente a ${pendientes.length} documentos!`);
+        const modalElement = document.getElementById('modalSubirFirma');
+        const myModal = bootstrap.Modal.getInstance(modalElement);
+        myModal.hide();
+    } catch(e) {
+        console.error("Error aplicando firma de jefe:", e);
+        alert("Ocurrió un error al intentar firmar los documentos.");
+    }
+}
+
+function verificarFirmasPendientes() {
+    db.collection('firmas_planillas')
+        .where('docenteDni', '==', docenteDNI)
+        .where('firmaDocente', '==', null)
+        .onSnapshot(snap => {
+            let container = document.getElementById('firmas-pendientes-container');
+            
+            if (!snap.empty) {
+                if (!container) {
+                    const welcomeMsg = document.getElementById('welcome-msg');
+                    if (welcomeMsg) {
+                        welcomeMsg.insertAdjacentHTML('afterend', `
+                            <div class="mt-2 mb-3" id="firmas-pendientes-container">
+                                <button id="btn-firmas-pendientes" class="btn btn-warning btn-sm rounded-pill fw-bold shadow-sm position-relative" onclick="abrirModalFirmaDocente()">
+                                    <i class="bi bi-pen-fill"></i> Tienes documentos por firmar
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="badge-firmas">
+                                        ${snap.size}
+                                    </span>
+                                </button>
+                            </div>
+                        `);
+                    }
+                } else {
+                    const badge = document.getElementById('badge-firmas');
+                    if(badge) badge.innerText = snap.size;
+                }
+                window.firmasPendientesDocs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+            } else {
+                if(container) container.remove();
+                window.firmasPendientesDocs = [];
+            }
+        });
+}
+
+function abrirModalFirmaDocente() {
+    if (!window.firmasPendientesDocs || window.firmasPendientesDocs.length === 0) return;
+    
+    const docData = window.firmasPendientesDocs[0];
+    currentFirmaDocId = docData.id;
+    
+    if (!document.getElementById('modalFirmaDocente')) {
+        const modalHTML = `
+        <div class="modal fade" id="modalFirmaDocente" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-pen"></i> Firma Requerida</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info py-2">
+                            <div class="mb-1"><strong>Periodo:</strong> <span id="fd-mes"></span></div>
+                            <div class="mb-1"><strong>Total Horas:</strong> <span id="fd-horas" class="fw-bold text-success"></span> hrs</div>
+                        </div>
+                        <p class="small text-muted mb-2">Por favor, sube una foto de tu firma o rúbrica para validar formalmente este reporte de asistencia mensual.</p>
+                        <div class="text-center p-3 bg-light border rounded">
+                            <input type="file" id="input-firma-docente" accept="image/*" class="form-control mb-3" onchange="previewFirma(event, 'preview-firma-docente')">
+                            <img id="preview-firma-docente" style="max-width: 100%; max-height: 120px; display: none;" class="border rounded shadow-sm">
+                        </div>
+                    </div>
+                    <div class="modal-footer d-flex justify-content-between align-items-center">
+                        <span class="small text-muted fw-bold" id="fd-restantes"></span>
+                        <button type="button" class="btn btn-primary fw-bold px-4" onclick="guardarFirmaDocente()">
+                            <i class="bi bi-check2-circle"></i> Firmar Documento
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+    }
+    
+    document.getElementById('fd-mes').innerText = docData.mes;
+    document.getElementById('fd-horas').innerText = docData.horasTotales;
+    
+    const restantesEl = document.getElementById('fd-restantes');
+    if(window.firmasPendientesDocs.length > 1) {
+        restantesEl.innerText = `1 de ${window.firmasPendientesDocs.length} documentos pendientes`;
+    } else {
+        restantesEl.innerText = '';
+    }
+    
+    document.getElementById('input-firma-docente').value = '';
+    document.getElementById('preview-firma-docente').style.display = 'none';
+    firmaDocenteBase64 = null;
+    
+    const modalElement = document.getElementById('modalFirmaDocente');
+    const myModal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    myModal.show();
+}
+
+async function guardarFirmaDocente() {
+    if(!firmaDocenteBase64) return alert("Por favor, sube la imagen de tu firma antes de continuar.");
+    if(!currentFirmaDocId) return;
+    
+    try {
+        await db.collection('firmas_planillas').doc(currentFirmaDocId).update({
+            firmaDocente: firmaDocenteBase64
+        });
+        alert("¡Tu firma ha sido guardada y el documento validado correctamente!");
+        
+        const modalElement = document.getElementById('modalFirmaDocente');
+        const myModal = bootstrap.Modal.getInstance(modalElement);
+        myModal.hide();
+        
+        if (window.firmasPendientesDocs.length > 1) {
+            setTimeout(abrirModalFirmaDocente, 500); 
+        }
+    } catch (e) {
+        console.error("Error guardando firma docente:", e);
+        alert("Ocurrió un error al guardar tu firma. Verifica tu conexión.");
+    }
+}
+
+async function generarPDF(firmaDocId) {
+    try {
+        const docRef = await db.collection('firmas_planillas').doc(firmaDocId).get();
+        if(!docRef.exists) return alert("Error: No se encontró el documento de firma.");
+        const data = docRef.data();
+        
+        if(!data.firmaDocente || !data.firmaJefe) return alert("No se puede generar el PDF porque faltan firmas.");
+        
+        if (!window.jspdf) {
+            return alert("La librería para generar PDF no está cargada. Actualiza la página e intenta de nuevo.");
+        }
+
+        const getImgFormat = (b64) => {
+            if(b64.startsWith("data:image/png")) return "PNG";
+            if(b64.startsWith("data:image/jpeg") || b64.startsWith("data:image/jpg")) return "JPEG";
+            if(b64.startsWith("data:image/webp")) return "WEBP";
+            return "PNG"; 
+        };
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF();
+        
+        pdf.setFontSize(14);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(0, 143, 57);
+        pdf.text("REPORTE MENSUAL DE ASISTENCIA TÉCNICA Y CAPACITACIÓN", 105, 20, { align: "center" });
+        
+        pdf.setFontSize(11);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(0, 0, 0);
+        
+        pdf.text(`Docente:`, 14, 35);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(data.docenteNombre, 35, 35);
+        
+        pdf.setFont("helvetica", "normal");
+        pdf.text(`DNI: ${data.docenteDni}`, 14, 42);
+        pdf.text(`Periodo: ${data.mes}`, 14, 49);
+        
+        pdf.text(`Total Horas Acumuladas:`, 14, 56);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(`${Number(data.horasTotales).toFixed(2)} hrs`, 60, 56);
+        
+        if(data.detalles && data.detalles.length > 0) {
+            data.detalles.sort((a, b) => {
+                const dateA = a.inicio ? a.inicio.toDate() : new Date(0);
+                const dateB = b.inicio ? b.inicio.toDate() : new Date(0);
+                return dateA - dateB;
+            });
+
+            const body = data.detalles.map(d => {
+                const fecha = d.inicio ? d.inicio.toDate().toLocaleDateString() : '---';
+                return [
+                    fecha,
+                    d.nombreCurso || '---',
+                    d.nrc || '---',
+                    d.temaDictado || '---',
+                    (d.horasTotales || 0).toFixed(2)
+                ];
+            });
+            
+            pdf.autoTable({
+                startY: 65,
+                head: [['Fecha', 'Curso', 'NRC', 'Tema Dictado', 'Horas']],
+                body: body,
+                theme: 'grid',
+                headStyles: { fillColor: [0, 143, 57], textColor: [255, 255, 255] },
+                styles: { fontSize: 9, cellPadding: 2 }
+            });
+        }
+        
+        const finalY = (pdf.lastAutoTable ? pdf.lastAutoTable.finalY : 65) + 30;
+        if(finalY > 240) pdf.addPage();
+        
+        if(data.firmaDocente) {
+            try {
+                pdf.addImage(data.firmaDocente, getImgFormat(data.firmaDocente), 30, finalY, 40, 20);
+            } catch(e) { console.warn("Aviso: No se pudo incrustar firma docente.", e); }
+        }
+        pdf.setDrawColor(150);
+        pdf.line(20, finalY + 22, 80, finalY + 22);
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Firma del Docente", 50, finalY + 27, { align: "center" });
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(9);
+        pdf.text(data.docenteNombre, 50, finalY + 32, { align: "center" });
+        
+        if(data.firmaJefe) {
+            try {
+                pdf.addImage(data.firmaJefe, getImgFormat(data.firmaJefe), 130, finalY, 40, 20);
+            } catch(e) { console.warn("Aviso: No se pudo incrustar firma jefe.", e); }
+        }
+        pdf.line(120, finalY + 22, 180, finalY + 22);
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Jefe de Capacitación CTTC", 150, finalY + 27, { align: "center" });
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(9);
+        pdf.text("Jean Rodriguez", 150, finalY + 32, { align: "center" });
+        
+        pdf.save(`Reporte_Firmado_${data.docenteNombre.replace(/\s+/g, '_')}_${data.mes.replace(/\s+/g, '_')}.pdf`);
+        
+    } catch(e) {
+        console.error("Error general generando PDF:", e);
+        alert("Ocurrió un error al construir el PDF. Intenta de nuevo.");
     }
 }
 
