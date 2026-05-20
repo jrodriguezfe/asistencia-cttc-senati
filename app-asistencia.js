@@ -72,6 +72,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('display-uid').parentElement.style.display = 'none';
     }
 
+    // --- NUEVO: Límite de palabras para Actividad/Tema ---
+    const temaInput = document.getElementById('tema-input');
+    if (temaInput) {
+        const feedback = document.createElement('small');
+        feedback.id = 'tema-feedback';
+        feedback.className = 'text-muted d-block mt-1';
+        feedback.innerText = '0/15 palabras';
+        temaInput.insertAdjacentElement('afterend', feedback);
+
+        temaInput.addEventListener('input', function() {
+            const maxWords = 15;
+            let text = this.value;
+            let words = text.trim() === "" ? [] : text.trim().split(/\s+/);
+            
+            if (words.length > maxWords) {
+                this.value = words.slice(0, maxWords).join(" ") + " ";
+                feedback.className = 'text-danger d-block mt-1 fw-bold';
+                feedback.innerText = `Límite alcanzado: ${maxWords}/${maxWords} palabras.`;
+            } else {
+                feedback.className = 'text-muted d-block mt-1';
+                feedback.innerText = `${words.length}/${maxWords} palabras.`;
+            }
+        });
+    }
+
     if (!docenteUID) return;
 
     try {
@@ -347,6 +372,12 @@ async function endSession() {
 
     if (!curso || !nrc || !tema) {
         return alert("⚠️ Por favor, complete los campos obligatorios (Curso, NRC y Tema) antes de finalizar.");
+    }
+
+    // Validar cantidad de palabras en el tema como medida de seguridad
+    const temaWords = tema.split(/\s+/).filter(w => w.length > 0);
+    if (temaWords.length > 15) {
+        return alert("⚠️ El tema dictado es muy extenso. Por favor, resúmalo a un máximo de 15 palabras.");
     }
 
     // 2. Deshabilitar el botón para evitar el "Doble Clic"
