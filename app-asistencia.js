@@ -1,4 +1,4 @@
-// Configuración de Firebase (Usa las mismas de tu catálogo)
+﻿// ConfiguraciÃ³n de Firebase (Usa las mismas de tu catÃ¡logo)
 const firebaseConfig = {
   apiKey: "AIzaSyCkc78g60mGIM6E6y-6muW7icx99tzW4Fk",
   authDomain: "asistencia-cttc-senati.firebaseapp.com",
@@ -12,7 +12,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Configuración de la segunda base de datos (Programaciones CTTC)
+// ConfiguraciÃ³n de la segunda base de datos (Programaciones CTTC)
 const firebaseProgramacionConfig = {
   apiKey: "AIzaSyB38Wbf0Q9YLz61vxQXVw1oSpMNyPVGy-c",
   authDomain: "programacion-cttc.firebaseapp.com",
@@ -27,10 +27,17 @@ const dbProgramacion = appProgramacion.firestore();
 let timerInterval;
 let startTime;
 let currentAsistenciaId;
-let datosCierreMes = []; // Variable global para guardar el último reporte generado
+let datosCierreMes = []; // Variable global para guardar el Ãºltimo reporte generado
 let adminVerTodos = false; // Estado para limitar la vista de reportes en admin
+let unsubscribePlanillas = null;
+let unsubscribeEstadoFirmas = null;
+let unsubscribeFirmasPendientes = null;
+window.adminSortConfig = {
+    field: 'fecha',
+    direction: 'desc'
+};
 
-// Capturar parámetros de la URL enviados desde el Catálogo
+// Capturar parÃ¡metros de la URL enviados desde el CatÃ¡logo
 const params = new URLSearchParams(window.location.search);
 const docenteNombre = params.get('name');
 const docenteUID = params.get('uid');
@@ -38,18 +45,18 @@ const docenteDNI = params.get('dni');
 const docenteID = params.get('id');
 const docenteRol = params.get('rol');
 
-// Verifica en consola si los datos llegan al cargar la página
+// Verifica en consola si los datos llegan al cargar la pÃ¡gina
 console.log("Datos recibidos:", { docenteUID, docenteNombre, docenteDNI, docenteID, docenteRol });
 
 
 
-// 1. RECUPERACIÓN AUTOMÁTICA AL CARGAR LA PÁGINA
+// 1. RECUPERACIÃ“N AUTOMÃTICA AL CARGAR LA PÃGINA
 document.addEventListener('DOMContentLoaded', async () => {
     if (document.getElementById('welcome-msg')) {
         const welcomeMsg = document.getElementById('welcome-msg');
         welcomeMsg.innerText = `Hola, ${docenteNombre || 'Docente'}`;
         
-        // Inyectar el botón de "Mis Registros" dinámicamente debajo del nombre
+        // Inyectar el botÃ³n de "Mis Registros" dinÃ¡micamente debajo del nombre
         if (!document.getElementById('btn-mis-registros')) {
             welcomeMsg.insertAdjacentHTML('afterend', `
                 <div class="mt-2 mb-3">
@@ -76,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         verificarFirmasPendientes();
     }
 
-    // --- NUEVO: Límite de palabras para Actividad/Tema ---
+    // --- NUEVO: LÃ­mite de palabras para Actividad/Tema ---
     const temaInput = document.getElementById('tema-input');
     if (temaInput) {
         const feedback = document.createElement('small');
@@ -93,7 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (words.length > maxWords) {
                 this.value = words.slice(0, maxWords).join(" ") + " ";
                 feedback.className = 'text-danger d-block mt-1 fw-bold';
-                feedback.innerText = `Límite alcanzado: ${maxWords}/${maxWords} palabras.`;
+                feedback.innerText = `LÃ­mite alcanzado: ${maxWords}/${maxWords} palabras.`;
             } else {
                 feedback.className = 'text-muted d-block mt-1';
                 feedback.innerText = `${words.length}/${maxWords} palabras.`;
@@ -122,17 +129,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 2. APLICAR REGLA DE LAS 8 HORAS
             if (diferenciaHoras >= 8) {
-                console.log("Sesión excedió las 8 horas. Finalizando automáticamente...");
+                console.log("SesiÃ³n excediÃ³ las 8 horas. Finalizando automÃ¡ticamente...");
                 
                 await db.collection('asistencias').doc(idDoc).update({
                     fin: firebase.firestore.FieldValue.serverTimestamp(),
                     horasTotales: 8.00, // Se castiga o limita a 8 horas
                     estado: "finalizado_auto",
-                    comentarios: (data.comentarios || "") + " [CIERRE AUTOMÁTICO POR EXCESO DE TIEMPO]"
+                    comentarios: (data.comentarios || "") + " [CIERRE AUTOMÃTICO POR EXCESO DE TIEMPO]"
                 });
 
                 localStorage.removeItem('sesion_startTime');
-                alert("Tenías una sesión abierta de hace más de 8 horas. Se ha cerrado automáticamente con el límite de tiempo permitido.");
+                alert("TenÃ­as una sesiÃ³n abierta de hace mÃ¡s de 8 horas. Se ha cerrado automÃ¡ticamente con el lÃ­mite de tiempo permitido.");
                 location.reload();
                 return;
             }
@@ -140,7 +147,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 3. Si es menor a 8 horas, recuperar normalmente
             currentAsistenciaId = idDoc;
             
-            // Recuperar el startTime exacto de localStorage para que no se reinicie el cronómetro
+            // Recuperar el startTime exacto de localStorage para que no se reinicie el cronÃ³metro
             const savedTime = localStorage.getItem('sesion_startTime');
             if (savedTime) {
                 startTime = new Date(savedTime);
@@ -153,19 +160,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('end-zone').style.display = 'block';
             iniciarCronometro();
             
-            // Aviso visual de sincronización
+            // Aviso visual de sincronizaciÃ³n
             const timerDisplay = document.getElementById('timer-display');
             timerDisplay.classList.add('text-success');
-            console.log("Sesión sincronizada desde la nube.");
+            console.log("SesiÃ³n sincronizada desde la nube.");
         }
     } catch (error) {
-        console.error("Error en la sincronización:", error);
+        console.error("Error en la sincronizaciÃ³n:", error);
     }
 });
 
 
 
-// FUNCIONES DE MARCACIÓN
+// FUNCIONES DE MARCACIÃ“N
 // 2. INICIO DE JORNADA (No cambia mucho, pero Firebase ya guarda el 'inicio')
 async function startSession() {
     if (!docenteUID) return alert("Error: Identidad no detectada.");
@@ -201,7 +208,12 @@ async function startSession() {
 
 let nrcTimeout;
 
-// Función para limpiar los placeholders de sesión y tema
+// Lista editable de feriados (YYYY-MM-DD). Añadir aquí las fechas de feriados nacionales/locales.
+const FERiados = [
+    // Ejemplo: '2026-05-01', '2026-07-29'
+];
+
+// FunciÃ³n para limpiar los placeholders de sesiÃ³n y tema
 function resetSessionPlaceholders() {
     const sesionInput = document.getElementById('sesion-input');
     const temaInput = document.getElementById('tema-input');
@@ -210,9 +222,114 @@ function resetSessionPlaceholders() {
         sesionInput.title = "";
     }
     if (temaInput) {
-        temaInput.placeholder = "Ej: Introducción a la seguridad...";
+        temaInput.placeholder = "Ej: IntroducciÃ³n a la seguridad...";
         temaInput.title = "";
     }
+}
+
+// Genera reporte por docente: totales por día, totales por semana e indicador de trabajo en feriado
+function generarReporteDocente() {
+    const datos = window.filteredAsistencias || [];
+    if (!datos.length) {
+        alert('No hay registros en el rango filtrado. Asegúrate de aplicar el rango de fechas.');
+        return;
+    }
+
+    // Agregar estructura por docente
+    const resumen = {}; // key -> { id, nombre, dni, dias: {date: hours}, semanas: {weekStart: hours}, trabajoFeriado: bool }
+
+    datos.forEach(entry => {
+        const a = entry.data;
+        const fechaObj = entry.fechaObj || (a.inicio ? a.inicio.toDate() : null);
+        if (!fechaObj) return;
+
+        const fechaStr = fechaObj.getFullYear() + '-' + String(fechaObj.getMonth()+1).padStart(2,'0') + '-' + String(fechaObj.getDate()).padStart(2,'0');
+
+        // calcular inicio de semana (lunes)
+        const day = fechaObj.getDay(); // 0 dom .. 6 sab
+        const diffToMonday = (day + 6) % 7; 
+        const monday = new Date(fechaObj);
+        monday.setDate(fechaObj.getDate() - diffToMonday);
+        const weekStart = monday.getFullYear() + '-' + String(monday.getMonth()+1).padStart(2,'0') + '-' + String(monday.getDate()).padStart(2,'0');
+
+        const docenteKey = (a.id_docente || a.uid || entry.id) + '||' + (a.nombre || 'Sin nombre');
+        if (!resumen[docenteKey]) {
+            resumen[docenteKey] = { id: a.id_docente || a.uid || entry.id, nombre: a.nombre || 'Sin nombre', dni: a.dni || '', dias: {}, semanas: {}, trabajoFeriado: false };
+        }
+
+        const horas = Number(a.horasTotales) || 0;
+        resumen[docenteKey].dias[fechaStr] = (resumen[docenteKey].dias[fechaStr] || 0) + horas;
+        resumen[docenteKey].semanas[weekStart] = (resumen[docenteKey].semanas[weekStart] || 0) + horas;
+
+        // Detectar feriado: o bien la entrada contiene un flag, o la fecha está en la lista FERiados
+        if (a.feriado === true || a.esFeriado === true || a.isHoliday === true) resumen[docenteKey].trabajoFeriado = true;
+        if (FERiados.includes(fechaStr)) resumen[docenteKey].trabajoFeriado = true;
+    });
+
+    // Generar HTML
+    let html = '';
+    html += '<div class="table-responsive">';
+    html += '<table class="table table-sm table-striped">';
+    html += '<thead class="table-light"><tr><th>Docente</th><th>DNI</th><th>Totales por Día</th><th>Totales por Semana (Inicio)</th><th>Trabajó en Feriado</th></tr></thead>';
+    html += '<tbody>';
+    html += '<tr><td colspan="5" class="text-danger small"><strong>Nota:</strong> las filas de día en rojo indican días con más de 4 horas.</td></tr>';
+
+    Object.values(resumen).forEach(r => {
+        // construir mini tabla de dias
+        let diasHtml = '<table class="table table-borderless mb-0 small">';
+        Object.keys(r.dias).sort().forEach(d => {
+            const horasDia = r.dias[d];
+            const claseAlerta = horasDia > 4 ? 'table-danger' : '';
+            diasHtml += `<tr class="${claseAlerta}"><td>${d}</td><td class="text-end fw-bold">${horasDia.toFixed(2)}</td></tr>`;
+        });
+        diasHtml += '</table>';
+
+        let semanasHtml = '<table class="table table-borderless mb-0 small">';
+        Object.keys(r.semanas).sort().forEach(w => {
+            semanasHtml += `<tr><td>${w}</td><td class="text-end">${r.semanas[w].toFixed(2)}</td></tr>`;
+        });
+        semanasHtml += '</table>';
+
+        html += `<tr>
+            <td>${r.nombre}</td>
+            <td>${r.dni}</td>
+            <td style="min-width:200px">${diasHtml}</td>
+            <td style="min-width:200px">${semanasHtml}</td>
+            <td>${r.trabajoFeriado ? '<span class="badge bg-danger">Sí</span>' : '<span class="badge bg-secondary">No</span>'}</td>
+        </tr>`;
+    });
+
+    html += '</tbody></table></div>';
+
+    document.getElementById('contenido-reporte-docente').innerHTML = html;
+
+    // Guardar datos para exportar si es necesario
+    window._ultimoReporteDocente = resumen;
+
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('modalReporteDocente'));
+    modal.show();
+}
+
+// Exportar reporte docente a Excel (CSV simple)
+function exportarReporteDocenteExcel() {
+    const resumen = window._ultimoReporteDocente || {};
+    const rows = [];
+    rows.push(['Docente','DNI','Tipo','Fecha/InicioSemana','Horas']);
+    Object.values(resumen).forEach(r => {
+        Object.entries(r.dias).forEach(([d,h]) => { rows.push([r.nombre, r.dni, 'Día', d, h.toFixed(2)]) });
+        Object.entries(r.semanas).forEach(([w,h]) => { rows.push([r.nombre, r.dni, 'Semana', w, h.toFixed(2)]) });
+        if (r.trabajoFeriado) rows.push([r.nombre, r.dni, 'Feriado', 'Trabajó en feriado', 'Sí']);
+    });
+
+    const csv = '\ufeff' + rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(';')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reporte_docente_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 async function buscarInfoNRC() {
@@ -224,7 +341,7 @@ async function buscarInfoNRC() {
     let nrcValue = nrcInput.value;
     nrcValue = nrcValue ? nrcValue.toString().trim() : '';
     
-    // Filtrar para que solo acepte caracteres numéricos en caso de copiar y pegar
+    // Filtrar para que solo acepte caracteres numÃ©ricos en caso de copiar y pegar
     if (/[^0-9]/.test(nrcValue)) {
         nrcValue = nrcValue.replace(/[^0-9]/g, '');
         nrcInput.value = nrcValue;
@@ -247,15 +364,15 @@ async function buscarInfoNRC() {
         infoCard.style.display = 'none';
         
         try {
-            // Intentar buscar el NRC asumiendo que se guardó como Texto
+            // Intentar buscar el NRC asumiendo que se guardÃ³ como Texto
             let snapshot = await dbProgramacion.collection('programaciones').where('NRC', '==', nrcValue).limit(1).get();
             
-            // Si no lo encuentra, intentar buscarlo asumiendo que se guardó como Número
+            // Si no lo encuentra, intentar buscarlo asumiendo que se guardÃ³ como NÃºmero
             if (snapshot.empty) {
                 snapshot = await dbProgramacion.collection('programaciones').where('NRC', '==', Number(nrcValue)).limit(1).get();
             }
 
-            // Si aún no lo encuentra, intentar con la propiedad en minúscula "nrc" (Texto y Número)
+            // Si aÃºn no lo encuentra, intentar con la propiedad en minÃºscula "nrc" (Texto y NÃºmero)
             if (snapshot.empty) {
                 snapshot = await dbProgramacion.collection('programaciones').where('nrc', '==', nrcValue).limit(1).get();
             }
@@ -265,8 +382,8 @@ async function buscarInfoNRC() {
 
             if (!snapshot.empty) {
                 const data = snapshot.docs[0].data();
-                console.log("✅ NRC Encontrado en Firebase:", data); // Ayuda para depurar en consola
-                // Función auxiliar para extraer el campo ignorando mayúsculas/minúsculas o espacios accidentales
+                console.log("âœ… NRC Encontrado en Firebase:", data); // Ayuda para depurar en consola
+                // FunciÃ³n auxiliar para extraer el campo ignorando mayÃºsculas/minÃºsculas o espacios accidentales
                 const getField = (obj, propName) => {
                     const key = Object.keys(obj).find(k => k.trim().toLowerCase() === propName.trim().toLowerCase());
                     return key ? obj[key] : null;
@@ -274,14 +391,14 @@ async function buscarInfoNRC() {
                 
                 cursoInput.value = getField(data, 'MODULO-CURSO') || getField(data, 'CURSO') || '';
                 document.getElementById('nrc-horario').innerText = getField(data, 'Horario') || '---';
-                document.getElementById('nrc-duracion').innerText = getField(data, 'Duración') || getField(data, 'Duracion') || '---';
+                document.getElementById('nrc-duracion').innerText = getField(data, 'DuraciÃ³n') || getField(data, 'Duracion') || '---';
                 document.getElementById('nrc-inicio').innerText = getField(data, 'Fecha de inicio') || getField(data, 'Inicio') || '---';
                 document.getElementById('nrc-fin').innerText = getField(data, 'Fecha de fin') || getField(data, 'Fin') || '---';
                 
                 infoCard.style.display = 'block';
                 loadingText.style.display = 'none';
 
-                // --- INICIO: Lógica para sugerir siguiente sesión y tema ---
+                // --- INICIO: LÃ³gica para sugerir siguiente sesiÃ³n y tema ---
                 try {
                     const asistenciasSnap = await db.collection('asistencias')
                         .where('nrc', '==', nrcValue)
@@ -300,7 +417,7 @@ async function buscarInfoNRC() {
                         });
 
                         if (registros.length > 0) {
-                            // Ordenar descendentemente por fecha para obtener el último
+                            // Ordenar descendentemente por fecha para obtener el Ãºltimo
                             registros.sort((a, b) => {
                                 const dateA = a.inicio ? a.inicio.toDate() : new Date(0);
                                 const dateB = b.inicio ? b.inicio.toDate() : new Date(0);
@@ -313,30 +430,30 @@ async function buscarInfoNRC() {
 
                             if (lastSesion) {
                                 sesionInput.placeholder = `Ultimo registro: ${lastSesion}`;
-                                sesionInput.title = `La última sesión registrada fue: ${lastSesion}`;
+                                sesionInput.title = `La Ãºltima sesiÃ³n registrada fue: ${lastSesion}`;
                             } else {
                                 sesionInput.placeholder = "Ej: 1";
                             }
                             
                             if (lastTema) {
-                                temaInput.placeholder = `Último tema: ${lastTema}`;
-                                temaInput.title = `Último tema: ${lastTema}`;
+                                temaInput.placeholder = `Ãšltimo tema: ${lastTema}`;
+                                temaInput.title = `Ãšltimo tema: ${lastTema}`;
                             } else {
-                                temaInput.placeholder = "Ej: Introducción a la seguridad...";
+                                temaInput.placeholder = "Ej: IntroducciÃ³n a la seguridad...";
                             }
                         } else {
                             // No hay registros previos para este NRC
                             sesionInput.placeholder = "Ej: 1 (Primer registro)";
                             sesionInput.title = "Primer registro para este NRC";
-                            temaInput.placeholder = "Ej: Introducción a la seguridad...";
+                            temaInput.placeholder = "Ej: IntroducciÃ³n a la seguridad...";
                         }
                     }
                 } catch (err) {
-                    console.warn("No se pudo buscar la última sesión para sugerencias:", err);
+                    console.warn("No se pudo buscar la Ãºltima sesiÃ³n para sugerencias:", err);
                 }
-                // --- FIN: Lógica para sugerir siguiente sesión y tema ---
+                // --- FIN: LÃ³gica para sugerir siguiente sesiÃ³n y tema ---
             } else {
-                console.warn("⚠️ NRC no encontrado en la base de datos.");
+                console.warn("âš ï¸ NRC no encontrado en la base de datos.");
                 cursoInput.value = '';
                 infoCard.style.display = 'none';
                 
@@ -346,19 +463,19 @@ async function buscarInfoNRC() {
                 resetSessionPlaceholders();
             }
         } catch (error) {
-            console.error("Error al buscar información del NRC:", error);
+            console.error("Error al buscar informaciÃ³n del NRC:", error);
             loadingText.style.display = 'block';
-            loadingText.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Error: ${error.message || 'Fallo de conexión'}`;
+            loadingText.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Error: ${error.message || 'Fallo de conexiÃ³n'}`;
             loadingText.className = "form-text text-danger small mt-1";
             resetSessionPlaceholders();
         }
-    }, 800); // 800 milisegundos de espera tras la última pulsación
+    }, 800); // 800 milisegundos de espera tras la Ãºltima pulsaciÃ³n
 }
 
 async function endSession() {
-    // 1. Verificación de seguridad de la sesión
+    // 1. VerificaciÃ³n de seguridad de la sesiÃ³n
     if (!currentAsistenciaId) {
-        return alert("Error: No se encontró una sesión activa. Por favor, recarga la página.");
+        return alert("Error: No se encontrÃ³ una sesiÃ³n activa. Por favor, recarga la pÃ¡gina.");
     }
 
     // Captura de campos obligatorios
@@ -367,7 +484,7 @@ async function endSession() {
     const temaInput = document.getElementById('tema-input');
 
     if (!cursoInput || !nrcInput || !temaInput) {
-        return alert("Error técnico: No se encuentran los campos en el HTML. Por favor, limpia la caché (Ctrl+F5).");
+        return alert("Error tÃ©cnico: No se encuentran los campos en el HTML. Por favor, limpia la cachÃ© (Ctrl+F5).");
     }
 
     const curso = cursoInput.value.trim();
@@ -375,23 +492,23 @@ async function endSession() {
     const tema = temaInput.value.trim();
 
     if (!curso || !nrc || !tema) {
-        return alert("⚠️ Por favor, complete los campos obligatorios (Curso, NRC y Tema) antes de finalizar.");
+        return alert("âš ï¸ Por favor, complete los campos obligatorios (Curso, NRC y Tema) antes de finalizar.");
     }
 
     // Validar cantidad de palabras en el tema como medida de seguridad
     const temaWords = tema.split(/\s+/).filter(w => w.length > 0);
     if (temaWords.length > 15) {
-        return alert("⚠️ El tema dictado es muy extenso. Por favor, resúmalo a un máximo de 15 palabras.");
+        return alert("âš ï¸ El tema dictado es muy extenso. Por favor, resÃºmalo a un mÃ¡ximo de 15 palabras.");
     }
 
-    // 2. Deshabilitar el botón para evitar el "Doble Clic"
+    // 2. Deshabilitar el botÃ³n para evitar el "Doble Clic"
     const btnFinalizar = document.querySelector('#end-zone .btn-danger');
     if (btnFinalizar) {
         btnFinalizar.disabled = true;
         btnFinalizar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
     }
 
-    // 3. Cálculo seguro de las horas
+    // 3. CÃ¡lculo seguro de las horas
     let horasCalculadas = 0;
     if (startTime) {
         const endTime = new Date();
@@ -424,13 +541,13 @@ async function endSession() {
         
         clearInterval(timerInterval);
         localStorage.removeItem('sesion_startTime');
-        alert("✅ Jornada guardada y sincronizada exitosamente.");
+        alert("âœ… Jornada guardada y sincronizada exitosamente.");
         location.reload(); 
     } catch (error) {
         console.error("Error al finalizar:", error);
-        alert("❌ Error al finalizar la sesión. Verifique su conexión.");
+        alert("âŒ Error al finalizar la sesiÃ³n. Verifique su conexiÃ³n.");
         
-        // Si ocurre un error, volvemos a habilitar el botón para reintentar
+        // Si ocurre un error, volvemos a habilitar el botÃ³n para reintentar
         if (btnFinalizar) {
             btnFinalizar.disabled = false;
             btnFinalizar.innerHTML = '<i class="bi bi-stop-circle-fill"></i> FINALIZAR Y REGISTRAR';
@@ -453,7 +570,7 @@ function iniciarCronometro() {
 async function verMisRegistros() {
     if (!docenteUID) return alert("Error: Identidad no detectada.");
 
-    // Crear el modal dinámicamente si no existe, manteniendo el HTML limpio
+    // Crear el modal dinÃ¡micamente si no existe, manteniendo el HTML limpio
     if (!document.getElementById('modalMisRegistros')) {
         const modalHTML = `
         <div class="modal fade" id="modalMisRegistros" tabindex="-1" aria-hidden="true">
@@ -483,7 +600,7 @@ async function verMisRegistros() {
                         <div id="resumen-grafico" class="mb-3"></div>
                         
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="text-muted small">Tus últimos registros</span>
+                            <span class="text-muted small">Tus Ãºltimos registros</span>
                             <button class="btn btn-sm btn-outline-success fw-bold" onclick="descargarMisRegistros()">
                                 <i class="bi bi-download"></i> Descargar CSV
                             </button>
@@ -511,7 +628,7 @@ async function verMisRegistros() {
         document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
 
-    // Solución al bug de múltiples clics en Bootstrap 5
+    // SoluciÃ³n al bug de mÃºltiples clics en Bootstrap 5
     const modalElement = document.getElementById('modalMisRegistros');
     const myModal = bootstrap.Modal.getOrCreateInstance(modalElement);
     myModal.show();
@@ -533,7 +650,7 @@ async function verMisRegistros() {
             const isFinalizado = data.estado === "finalizado" || data.estado === "finalizado_auto" || data.fin != null;
             
             if (isFinalizado) {
-                // Redondear el tiempo trabajado al límite inferior de cada media hora (piso) igual que en admin
+                // Redondear el tiempo trabajado al lÃ­mite inferior de cada media hora (piso) igual que en admin
                 data.horasTotales = Math.floor((data.horasTotales || 0) * 2) / 2;
                 
                 const fechaObj = data.inicio ? data.inicio.toDate() : null;
@@ -562,7 +679,7 @@ async function verMisRegistros() {
         document.getElementById('resumen-grafico').innerHTML = `
             <div class="alert alert-success d-flex justify-content-between align-items-center py-2 border-0 shadow-sm" style="background-color: #e8f5e9;">
                 <div>
-                    <h6 class="mb-0 fw-bold text-success"><i class="bi bi-calendar2-check"></i> ${filtroDesde || filtroHasta ? 'Total de Horas (Filtradas)' : 'Total Histórico de Horas'}</h6>
+                    <h6 class="mb-0 fw-bold text-success"><i class="bi bi-calendar2-check"></i> ${filtroDesde || filtroHasta ? 'Total de Horas (Filtradas)' : 'Total HistÃ³rico de Horas'}</h6>
                 </div>
                 <h4 class="mb-0 fw-bold text-success">${totalHoras.toFixed(2)} hrs</h4>
             </div>
@@ -585,7 +702,7 @@ async function verMisRegistros() {
             const fecha = r.inicio ? r.inicio.toDate().toLocaleDateString() : '---';
             const horas = r.horasTotales ? r.horasTotales.toFixed(2) : '0.00';
             const estadoBadge = r.estado === 'finalizado_auto' 
-                ? '<span class="badge bg-warning text-dark" title="Cierre Automático (8h)">Auto</span>' 
+                ? '<span class="badge bg-warning text-dark" title="Cierre AutomÃ¡tico (8h)">Auto</span>' 
                 : '<span class="badge bg-success">Completado</span>';
 
             html += `
@@ -602,7 +719,7 @@ async function verMisRegistros() {
 
     } catch (error) {
         console.error("Error al obtener registros:", error);
-        document.getElementById('tabla-mis-registros').innerHTML = '<tr><td colspan="5" class="text-danger py-3">Error al cargar los registros. Revisa tu conexión a internet.</td></tr>';
+        document.getElementById('tabla-mis-registros').innerHTML = '<tr><td colspan="5" class="text-danger py-3">Error al cargar los registros. Revisa tu conexiÃ³n a internet.</td></tr>';
     }
 }
 
@@ -622,7 +739,7 @@ function descargarMisRegistros() {
         const nrc = r.nrc || '';
         const tema = (r.temaDictado || '').replace(/"/g, '""');
         const horas = r.horasTotales ? r.horasTotales.toFixed(2) : '0.00';
-        const estado = r.estado === 'finalizado_auto' ? 'Cierre Automático' : 'Completado';
+        const estado = r.estado === 'finalizado_auto' ? 'Cierre AutomÃ¡tico' : 'Completado';
 
         csv += `"${fecha}";"${curso}";"${nrc}";"${tema}";"${horas}";"${estado}"\n`;
     });
@@ -639,7 +756,7 @@ function cargarReporteAsistencias() {
     const container = document.getElementById('tabla-reportes-body');
     if (!container) return;
 
-    // 1. Captura de todos los filtros (Asegúrate de tener el input 'filtro-nrc' en tu HTML)
+    // 1. Captura de todos los filtros (AsegÃºrate de tener el input 'filtro-nrc' en tu HTML)
     const filtroNombreValue = document.getElementById('filtro-nombre')?.value || "";
     const filtroNombre = filtroNombreValue.toLowerCase();
     const filtroNRCValue = document.getElementById('filtro-nrc')?.value || "";
@@ -660,9 +777,9 @@ function cargarReporteAsistencias() {
         let sesionesCompletas = 0;
         let sesionesIncompletas = 0;
         
-        let registrosMatriz = []; // Almacenará datos para el cuadro de doble entrada
+        let registrosMatriz = []; // AlmacenarÃ¡ datos para el cuadro de doble entrada
         window.datosEdicion = {}; // Guardar en memoria local para evitar consultas extra en Firebase
-        window.filteredAsistencias = []; // <-- Arreglo para exportación y cierre de mes
+        window.filteredAsistencias = []; // <-- Arreglo para exportaciÃ³n y cierre de mes
 
         let uniqueNombres = new Set();
         let uniqueNRCs = new Set();
@@ -670,12 +787,12 @@ function cargarReporteAsistencias() {
         let uniqueIDs = new Set();
 
         // 1. Procesar todos los documentos, filtrar y poblar los arreglos de datos
-        snapshot.forEach(doc => {
-            const a = doc.data();
+    asistencias.forEach(doc => {
+            const a = doc.data;
             const id = doc.id;
 
             if (a.estado === "finalizado" || a.estado === "finalizado_auto") {
-                // Redondear el tiempo trabajado al límite inferior de cada media hora (piso)
+                // Redondear el tiempo trabajado al lÃ­mite inferior de cada media hora (piso)
                 a.horasTotales = Math.floor((a.horasTotales || 0) * 2) / 2;
 
                 if (a.nombre) uniqueNombres.add(a.nombre.trim());
@@ -684,7 +801,12 @@ function cargarReporteAsistencias() {
                 if (a.id_docente) uniqueIDs.add(a.id_docente.toString().trim());
 
                 const fechaObj = a.inicio ? a.inicio.toDate() : null;
-                const fechaISO = fechaObj ? fechaObj.toISOString().split('T')[0] : '';
+                // Usar la fecha local (YYYY-MM-DD) para que la comparación con inputs de tipo date sea correcta
+                const fechaISO = fechaObj ? (
+                    fechaObj.getFullYear() + '-' +
+                    String(fechaObj.getMonth() + 1).padStart(2, '0') + '-' +
+                    String(fechaObj.getDate()).padStart(2, '0')
+                ) : '';
                 
                 let cumpleNombre = filtroNombre === "" || a.nombre.trim().toLowerCase() === filtroNombre;
                 let cumpleNRC = filtroNRC === "" || (a.nrc && a.nrc.toString().trim().toLowerCase() === filtroNRC);
@@ -696,7 +818,20 @@ function cargarReporteAsistencias() {
                 if (cumpleNombre && cumpleNRC && cumpleDNI && cumpleID && cumpleDesde && cumpleHasta) {
                     sumaTotal += a.horasTotales;
                     
-                    window.datosEdicion[id] = { nombre: a.nombre || '', horas: a.horasTotales, motivo: a.comentariosEdit || '' };
+                    const inicioDate = fechaObj;
+                    const fechaStrLocal = fechaISO;
+                    const inicioIso = inicioDate ? inicioDate.toISOString() : null;
+                    const finIso = a.fin ? a.fin.toDate().toISOString() : null;
+
+                    window.datosEdicion[id] = {
+                        nombre: a.nombre || '',
+                        horas: a.horasTotales,
+                        motivo: a.comentariosEdit || '',
+                        nrc: a.nrc || '',
+                        fecha: fechaStrLocal,
+                        inicioTimestamp: inicioIso,
+                        finTimestamp: finIso
+                    };
                     const checks = a.checklist || {};
                     const totalChecks = Object.values(checks).filter(v => v === true).length;
                     if(totalChecks === 6) sesionesCompletas++; else sesionesIncompletas++;
@@ -710,7 +845,7 @@ function cargarReporteAsistencias() {
                     });
                 }
 
-                // Lógica separada para poblar la matriz con sus propios filtros de fechas
+                // LÃ³gica separada para poblar la matriz con sus propios filtros de fechas
                 let cumpleMatrizDesde = matrizDesde ? (fechaISO >= matrizDesde) : true;
                 let cumpleMatrizHasta = matrizHasta ? (fechaISO <= matrizHasta) : true;
                 
@@ -728,7 +863,9 @@ function cargarReporteAsistencias() {
             }
         });
 
-        // 2. Determinar qué registros mostrar y construir el HTML de la tabla
+        // 2. Ordenar y determinar quÃ© registros mostrar
+        window.filteredAsistencias = sortAdminAsistencias(window.filteredAsistencias || []);
+        updateAdminSortIndicators();
         const totalFiltrado = window.filteredAsistencias.length;
         const registrosParaMostrar = adminVerTodos ? window.filteredAsistencias : window.filteredAsistencias.slice(0, 10);
         
@@ -741,7 +878,7 @@ function cargarReporteAsistencias() {
 
             const claseFila = a.estado === "finalizado_auto" ? "table-warning" : "";
             const badgeAlerta = a.estado === "finalizado_auto" ? 
-                '<i class="bi bi-exclamation-triangle-fill text-danger" title="Cierre Automático (8h)"></i>' : "";
+                '<i class="bi bi-exclamation-triangle-fill text-danger" title="Cierre AutomÃ¡tico (8h)"></i>' : "";
 
             html += `<tr class="${claseFila}">
                 <td>${fechaObj ? fechaObj.toLocaleDateString() : '---'}</td>
@@ -753,6 +890,7 @@ function cargarReporteAsistencias() {
                     <span class="badge bg-secondary">NRC: ${a.nrc || '---'}</span>
                     ${a.comentariosEdit ? `<div class="text-danger small mt-1" style="font-size:0.75rem"><strong>Ajuste:</strong> ${a.comentariosEdit}</div>` : ''}
                 </td>
+                <td>${a.numeroSesion || '---'}</td>
                 <td>${a.temaDictado || '---'}</td>
                 <td class="fw-bold text-primary">${a.horasTotales.toFixed(2)}</td>
                 <td>
@@ -781,9 +919,9 @@ function cargarReporteAsistencias() {
             if (totalFiltrado > 10) {
                 if (adminVerTodos) {
                     summaryContainer.innerHTML = `Mostrando <strong>${totalFiltrado}</strong> registros.`;
-                    controlsContainer.innerHTML = `<button class="btn btn-sm btn-link" onclick="toggleAdminView()">Ver solo los últimos 10</button>`;
+                    controlsContainer.innerHTML = `<button class="btn btn-sm btn-link" onclick="toggleAdminView()">Ver solo los Ãºltimos 10</button>`;
                 } else {
-                    summaryContainer.innerHTML = `Mostrando los últimos <strong>10</strong> de <strong>${totalFiltrado}</strong> registros.`;
+                    summaryContainer.innerHTML = `Mostrando los Ãºltimos <strong>10</strong> de <strong>${totalFiltrado}</strong> registros.`;
                     controlsContainer.innerHTML = `<button class="btn btn-sm btn-link" onclick="toggleAdminView()">Ver todos los registros (${totalFiltrado})</button>`;
                 }
             } else {
@@ -813,11 +951,88 @@ function toggleAdminView() {
     cargarReporteAsistencias();
 }
 
+async function obtenerAsistenciasCache(forceRefresh = false) {
+    if (!forceRefresh && window.cachedAsistencias) {
+        return window.cachedAsistencias;
+    }
+    const snapshot = await db.collection('asistencias').orderBy('inicio', 'desc').get();
+    window.cachedAsistencias = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() }));
+    return window.cachedAsistencias;
+}
+
+function setAdminSort(field) {
+    if (window.adminSortConfig.field === field) {
+        window.adminSortConfig.direction = window.adminSortConfig.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        window.adminSortConfig.field = field;
+        window.adminSortConfig.direction = 'asc';
+    }
+    cargarReporteAsistencias();
+}
+
+function getAdminSortValue(item, field) {
+    const a = item.data || {};
+    switch (field) {
+        case 'fecha':
+            return item.fechaObj ? item.fechaObj.getTime() : 0;
+        case 'docente':
+            return (a.nombre || '').toString().toLowerCase();
+        case 'id':
+            return (a.id_docente || '').toString().toLowerCase();
+        case 'dni':
+            return (a.dni || '').toString().toLowerCase();
+        case 'curso':
+            return ((a.nombreCurso || '') + ' ' + (a.nrc || '')).toString().toLowerCase();
+        case 'sesion':
+            return parseFloat(a.numeroSesion) || a.numeroSesion || '';
+        case 'tema':
+            return (a.temaDictado || '').toString().toLowerCase();
+        case 'horas':
+            return parseFloat(a.horasTotales) || 0;
+        case 'checks':
+            return item.totalChecks || 0;
+        case 'acciones':
+            return (a.nombre || '').toString().toLowerCase();
+        default:
+            return '';
+    }
+}
+
+function updateAdminSortIndicators() {
+    const headers = ['fecha', 'docente', 'id', 'dni', 'curso', 'sesion', 'tema', 'horas', 'checks', 'acciones'];
+    headers.forEach(field => {
+        const indicator = document.getElementById(`sort-${field}`);
+        if (!indicator) return;
+        if (window.adminSortConfig.field === field) {
+            indicator.innerHTML = window.adminSortConfig.direction === 'asc' ? '^' : 'v';
+        } else {
+            indicator.innerHTML = '';
+        }
+    });
+}
+
+function sortAdminAsistencias(records) {
+    const sorted = records.slice();
+    const field = window.adminSortConfig.field;
+    const direction = window.adminSortConfig.direction === 'asc' ? 1 : -1;
+    sorted.sort((a, b) => {
+        const valA = getAdminSortValue(a, field);
+        const valB = getAdminSortValue(b, field);
+
+        if (valA === valB) return 0;
+        if (typeof valA === 'number' && typeof valB === 'number') {
+            return (valA - valB) * direction;
+        }
+        return valA.toString().localeCompare(valB.toString(), 'es', { numeric: true }) * direction;
+    });
+    return sorted;
+}
+
 function actualizarDropdown(id, setValores, valorActual) {
     const select = document.getElementById(id);
     if (!select) return;
     
-    // Ordenamos alfabéticamente las opciones extraídas
+    // Ordenamos alfabÃ©ticamente las opciones extraÃ­das
     const opciones = Array.from(setValores).filter(Boolean).sort((a, b) => a.localeCompare(b));
     let html = '<option value="">Todos</option>';
     
@@ -826,7 +1041,7 @@ function actualizarDropdown(id, setValores, valorActual) {
     });
     
     select.innerHTML = html;
-    select.value = valorActual; // Restauramos la selección previa para que no parpadee/reseteé la vista
+    select.value = valorActual; // Restauramos la selecciÃ³n previa para que no parpadee/reseteÃ© la vista
 }
 
 function limpiarFiltros() {
@@ -850,7 +1065,7 @@ function exportarExcel() {
         return alert("No hay datos para exportar.");
     }
 
-    let csv = "\ufeffFecha;Docente;ID;DNI;Curso;NRC;Tema;Horas;Cumplimiento\n";
+    let csv = "\ufeffFecha;Docente;ID;DNI;Curso;NRC;Nº Sesión;Tema;Horas;Cumplimiento\n";
     
     window.filteredAsistencias.forEach(item => {
         const a = item.data;
@@ -860,11 +1075,12 @@ function exportarExcel() {
         const dniDocente = a.dni || 'S/N';
         const curso = (a.nombreCurso || 'N/A').replace(/"/g, '""');
         const nrc = a.nrc || '---';
+        const sesion = a.numeroSesion || '---';
         const tema = (a.temaDictado || '---').replace(/"/g, '""');
         const horas = a.horasTotales ? a.horasTotales.toFixed(2) : '0.00';
         const checks = `${item.totalChecks}/6`;
 
-        csv += `"${fecha}";"${docente}";"${idDocente}";"${dniDocente}";"${curso}";"${nrc}";"${tema}";"${horas}";"${checks}"\n`;
+        csv += `"${fecha}";"${docente}";"${idDocente}";"${dniDocente}";"${curso}";"${nrc}";"${sesion}";"${tema}";"${horas}";"${checks}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -880,7 +1096,7 @@ async function eliminarAsistencia(id) {
         return alert("Acceso denegado. Solo los administradores pueden eliminar registros.");
     }
 
-    if (confirm("¿Estás seguro de que deseas eliminar este registro de asistencia?")) {
+    if (confirm("Â¿EstÃ¡s seguro de que deseas eliminar este registro de asistencia?")) {
         try {
             await db.collection('asistencias').doc(id).delete();
             alert("Registro eliminado correctamente.");
@@ -983,13 +1199,13 @@ function exportarCierreExcel() {
     link.click();
 }
 
-// --- FUNCIONES DE AUDITORÍA Y PLANILLAS ---
+// --- FUNCIONES DE AUDITORÃA Y PLANILLAS ---
 
 async function guardarPlanillaBD(periodo, event) {
-    if (!auth.currentUser) return alert("No tienes permisos para esta acción.");
+    if (!auth.currentUser) return alert("No tienes permisos para esta acciÃ³n.");
     if (!datosCierreMes || datosCierreMes.length === 0) return alert("No hay datos para guardar.");
 
-    if (!confirm(`¿Estás seguro de que deseas guardar la planilla de ${periodo} de forma permanente?`)) return;
+    if (!confirm(`Â¿EstÃ¡s seguro de que deseas guardar la planilla de ${periodo} de forma permanente?`)) return;
 
     const btn = event.currentTarget;
     const originalText = btn.innerHTML;
@@ -997,8 +1213,8 @@ async function guardarPlanillaBD(periodo, event) {
     btn.disabled = true;
 
     try {
-        // Se guarda un historial crudo de cada registro exacto (auditoría profunda)
-        // SANITIZACIÓN: Limpiamos cualquier campo 'undefined' que pueda hacer que Firebase rechace la petición
+        // Se guarda un historial crudo de cada registro exacto (auditorÃ­a profunda)
+        // SANITIZACIÃ“N: Limpiamos cualquier campo 'undefined' que pueda hacer que Firebase rechace la peticiÃ³n
         const detallesAuditoria = window.filteredAsistencias.map(item => {
             const dataLimpia = { ...item.data };
             Object.keys(dataLimpia).forEach(key => {
@@ -1015,7 +1231,7 @@ async function guardarPlanillaBD(periodo, event) {
             detalles: detallesAuditoria // Copia de seguridad inmutable de las clases exactas
         });
 
-        alert(`Planilla de ${periodo} guardada exitosamente y bloqueada para auditoría.`);
+        alert(`Planilla de ${periodo} guardada exitosamente y bloqueada para auditorÃ­a.`);
         
         const modalElement = document.getElementById('modalCierreMes');
         const myModal = bootstrap.Modal.getInstance(modalElement);
@@ -1023,7 +1239,7 @@ async function guardarPlanillaBD(periodo, event) {
 
     } catch (e) {
         console.error("Error al guardar planilla:", e);
-        alert("Ocurrió un error al intentar guardar la planilla en la base de datos.");
+        alert("OcurriÃ³ un error al intentar guardar la planilla en la base de datos.");
         btn.innerHTML = originalText;
         btn.disabled = false;
     }
@@ -1033,11 +1249,17 @@ function cargarPlanillasGuardadas() {
     const tbody = document.getElementById('tabla-planillas-body');
     if (!tbody) return;
 
+    // Desconectamos cualquier suscripción previa antes de crear una nueva
+    if (unsubscribePlanillas) {
+        unsubscribePlanillas();
+        unsubscribePlanillas = null;
+    }
+
     // Usamos onSnapshot para que se actualice en tiempo real sin recargar la página
-    db.collection('planillas').orderBy('fechaCreacion', 'desc').onSnapshot(snapshot => {
+    unsubscribePlanillas = db.collection('planillas').orderBy('fechaCreacion', 'desc').onSnapshot(snapshot => {
         let html = '';
         if (snapshot.empty) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No hay planillas históricas guardadas.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No hay planillas histÃ³ricas guardadas.</td></tr>';
             return;
         }
 
@@ -1074,7 +1296,7 @@ function cargarPlanillasGuardadas() {
 
 async function eliminarPlanilla(id) {
     if (!auth.currentUser) return alert("Acceso denegado.");
-    if (confirm("⚠️ ATENCIÓN: Esta acción eliminará el registro histórico de esta planilla de forma definitiva. ¿Deseas continuar?")) {
+    if (confirm("âš ï¸ ATENCIÃ“N: Esta acciÃ³n eliminarÃ¡ el registro histÃ³rico de esta planilla de forma definitiva. Â¿Deseas continuar?")) {
         try {
             await db.collection('planillas').doc(id).delete();
             // No es necesario llamar a cargarPlanillasGuardadas porque onSnapshot actualiza solo
@@ -1105,7 +1327,7 @@ async function descargarPlanillaGuardada(id) {
         link.click();
     } catch (e) {
         console.error("Error al descargar planilla:", e);
-        alert("Ocurrió un error al descargar.");
+        alert("OcurriÃ³ un error al descargar.");
     }
 }
 
@@ -1152,7 +1374,12 @@ function cargarEstadoFirmas() {
     if(!tbody) return;
     tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><span class="spinner-border spinner-border-sm"></span> Cargando estado de firmas...</td></tr>';
     
-    db.collection('firmas_planillas').where('planillaId', '==', currentPlanillaId).onSnapshot(snap => {
+    if (unsubscribeEstadoFirmas) {
+        unsubscribeEstadoFirmas();
+        unsubscribeEstadoFirmas = null;
+    }
+
+    unsubscribeEstadoFirmas = db.collection('firmas_planillas').where('planillaId', '==', currentPlanillaId).onSnapshot(snap => {
         firmasDocs = [];
         let html = '';
         if(snap.empty) {
@@ -1187,10 +1414,10 @@ function cargarEstadoFirmas() {
 }
 
 async function generarSolicitudesFirma() {
-    if(!confirm("¿Deseas generar solicitudes de firma para todos los docentes de esta planilla que aún no tienen una?")) return;
+    if(!confirm("Â¿Deseas generar solicitudes de firma para todos los docentes de esta planilla que aÃºn no tienen una?")) return;
     try {
         const docRef = await db.collection('planillas').doc(currentPlanillaId).get();
-        if(!docRef.exists) return alert("Error: No se encontró la planilla origen.");
+        if(!docRef.exists) return alert("Error: No se encontrÃ³ la planilla origen.");
         const planillaData = docRef.data();
         
         const resumen = planillaData.resumen || [];
@@ -1219,7 +1446,7 @@ async function generarSolicitudesFirma() {
         alert(`Se generaron ${generados} nuevas solicitudes de firma para los docentes.`);
     } catch(e) {
         console.error("Error al generar solicitudes:", e);
-        alert("Ocurrió un error al generar las solicitudes.");
+        alert("OcurriÃ³ un error al generar las solicitudes.");
     }
 }
 
@@ -1238,7 +1465,7 @@ async function guardarFirmaJefe() {
     if(!firmaJefeBase64) return alert("Por favor, selecciona una imagen de tu firma primero.");
     const pendientes = firmasDocs.filter(f => !f.firmaJefe);
     if(pendientes.length === 0) {
-        alert("No hay documentos en esta planilla que estén pendientes de tu firma.");
+        alert("No hay documentos en esta planilla que estÃ©n pendientes de tu firma.");
         return;
     }
     
@@ -1250,18 +1477,23 @@ async function guardarFirmaJefe() {
         });
         await batch.commit();
         
-        alert(`¡Firma aplicada exitosamente a ${pendientes.length} documentos!`);
+        alert(`Â¡Firma aplicada exitosamente a ${pendientes.length} documentos!`);
         const modalElement = document.getElementById('modalSubirFirma');
         const myModal = bootstrap.Modal.getInstance(modalElement);
         myModal.hide();
     } catch(e) {
         console.error("Error aplicando firma de jefe:", e);
-        alert("Ocurrió un error al intentar firmar los documentos.");
+        alert("OcurriÃ³ un error al intentar firmar los documentos.");
     }
 }
 
 function verificarFirmasPendientes() {
-    db.collection('firmas_planillas')
+    if (unsubscribeFirmasPendientes) {
+        unsubscribeFirmasPendientes();
+        unsubscribeFirmasPendientes = null;
+    }
+
+    unsubscribeFirmasPendientes = db.collection('firmas_planillas')
         .where('docenteDni', '==', docenteDNI)
         .where('firmaDocente', '==', null)
         .onSnapshot(snap => {
@@ -1314,7 +1546,7 @@ function abrirModalFirmaDocente() {
                             <div class="mb-1"><strong>Periodo:</strong> <span id="fd-mes"></span></div>
                             <div class="mb-1"><strong>Total Horas:</strong> <span id="fd-horas" class="fw-bold text-success"></span> hrs</div>
                         </div>
-                        <p class="small text-muted mb-2">Por favor, sube una foto de tu firma o rúbrica para validar formalmente este reporte de asistencia mensual.</p>
+                        <p class="small text-muted mb-2">Por favor, sube una foto de tu firma o rÃºbrica para validar formalmente este reporte de asistencia mensual.</p>
                         <div class="text-center p-3 bg-light border rounded">
                             <input type="file" id="input-firma-docente" accept="image/*" class="form-control mb-3" onchange="previewFirma(event, 'preview-firma-docente')">
                             <img id="preview-firma-docente" style="max-width: 100%; max-height: 120px; display: none;" class="border rounded shadow-sm">
@@ -1359,7 +1591,7 @@ async function guardarFirmaDocente() {
         await db.collection('firmas_planillas').doc(currentFirmaDocId).update({
             firmaDocente: firmaDocenteBase64
         });
-        alert("¡Tu firma ha sido guardada y el documento validado correctamente!");
+        alert("Â¡Tu firma ha sido guardada y el documento validado correctamente!");
         
         const modalElement = document.getElementById('modalFirmaDocente');
         const myModal = bootstrap.Modal.getInstance(modalElement);
@@ -1370,20 +1602,20 @@ async function guardarFirmaDocente() {
         }
     } catch (e) {
         console.error("Error guardando firma docente:", e);
-        alert("Ocurrió un error al guardar tu firma. Verifica tu conexión.");
+        alert("OcurriÃ³ un error al guardar tu firma. Verifica tu conexiÃ³n.");
     }
 }
 
 async function generarPDF(firmaDocId) {
     try {
         const docRef = await db.collection('firmas_planillas').doc(firmaDocId).get();
-        if(!docRef.exists) return alert("Error: No se encontró el documento de firma.");
+        if(!docRef.exists) return alert("Error: No se encontrÃ³ el documento de firma.");
         const data = docRef.data();
         
         if(!data.firmaDocente || !data.firmaJefe) return alert("No se puede generar el PDF porque faltan firmas.");
         
         if (!window.jspdf) {
-            return alert("La librería para generar PDF no está cargada. Actualiza la página e intenta de nuevo.");
+            return alert("La librerÃ­a para generar PDF no estÃ¡ cargada. Actualiza la pÃ¡gina e intenta de nuevo.");
         }
 
         const getImgFormat = (b64) => {
@@ -1399,7 +1631,7 @@ async function generarPDF(firmaDocId) {
         pdf.setFontSize(14);
         pdf.setFont("helvetica", "bold");
         pdf.setTextColor(0, 143, 57);
-        pdf.text("REPORTE MENSUAL DE ASISTENCIA TÉCNICA Y CAPACITACIÓN", 105, 20, { align: "center" });
+        pdf.text("REPORTE MENSUAL DE ASISTENCIA TÃ‰CNICA Y CAPACITACIÃ“N", 105, 20, { align: "center" });
         
         pdf.setFontSize(11);
         pdf.setFont("helvetica", "normal");
@@ -1470,7 +1702,7 @@ async function generarPDF(firmaDocId) {
         pdf.line(120, finalY + 22, 180, finalY + 22);
         pdf.setFontSize(10);
         pdf.setFont("helvetica", "bold");
-        pdf.text("Jefe de Capacitación CTTC", 150, finalY + 27, { align: "center" });
+        pdf.text("Jefe de CapacitaciÃ³n CTTC", 150, finalY + 27, { align: "center" });
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(9);
         pdf.text("Jean Rodriguez", 150, finalY + 32, { align: "center" });
@@ -1479,7 +1711,7 @@ async function generarPDF(firmaDocId) {
         
     } catch(e) {
         console.error("Error general generando PDF:", e);
-        alert("Ocurrió un error al construir el PDF. Intenta de nuevo.");
+        alert("OcurriÃ³ un error al construir el PDF. Intenta de nuevo.");
     }
 }
 
@@ -1488,12 +1720,14 @@ async function generarPDF(firmaDocId) {
 function abrirModalEdicion(id) {
     const data = window.datosEdicion && window.datosEdicion[id];
     if (!data) {
-        alert("No se encontró la información local del registro. Por favor, recarga la página.");
+        alert("No se encontrÃ³ la informaciÃ³n local del registro. Por favor, recarga la pÃ¡gina.");
         return;
     }
 
     document.getElementById('edit-id').value = id;
     if (document.getElementById('edit-nombre')) document.getElementById('edit-nombre').value = data.nombre || '';
+    if (document.getElementById('edit-nrc')) document.getElementById('edit-nrc').value = data.nrc || '';
+    if (document.getElementById('edit-fecha')) document.getElementById('edit-fecha').value = data.fecha || '';
     document.getElementById('edit-horas').value = data.horas || 0;
     document.getElementById('edit-motivo').value = data.motivo || '';
     
@@ -1511,11 +1745,13 @@ async function guardarEdicionHora() {
 
     const id = document.getElementById('edit-id').value;
     const nombre = document.getElementById('edit-nombre') ? document.getElementById('edit-nombre').value.trim() : null;
+    const nrc = document.getElementById('edit-nrc') ? document.getElementById('edit-nrc').value.trim() : null;
+    const fechaSeleccionada = document.getElementById('edit-fecha') ? document.getElementById('edit-fecha').value : null;
     const horas = parseFloat(document.getElementById('edit-horas').value);
     const motivo = document.getElementById('edit-motivo').value;
 
     if (!id || isNaN(horas)) {
-        return alert("Por favor, ingresa una cantidad de horas válida.");
+        return alert("Por favor, ingresa una cantidad de horas vÃ¡lida.");
     }
 
     try {
@@ -1523,8 +1759,33 @@ async function guardarEdicionHora() {
             horasTotales: horas,
             comentariosEdit: motivo
         };
-        if (nombre !== null) { 
+        if (nombre !== null) {
             updateData.nombre = nombre;
+        }
+        if (nrc !== null) {
+            updateData.nrc = nrc;
+        }
+
+        const originalData = window.datosEdicion && window.datosEdicion[id];
+        if (originalData && fechaSeleccionada) {
+            const fechaOriginal = originalData.fecha || '';
+            if (fechaSeleccionada !== fechaOriginal && originalData.inicioTimestamp) {
+                const originalInicio = new Date(originalData.inicioTimestamp);
+                const hoursStr = String(originalInicio.getHours()).padStart(2, '0');
+                const minutesStr = String(originalInicio.getMinutes()).padStart(2, '0');
+                const secondsStr = String(originalInicio.getSeconds()).padStart(2, '0');
+                const nuevoInicio = new Date(`${fechaSeleccionada}T${hoursStr}:${minutesStr}:${secondsStr}`);
+                if (!isNaN(nuevoInicio.getTime())) {
+                    updateData.inicio = firebase.firestore.Timestamp.fromDate(nuevoInicio);
+                }
+
+                if (originalData.finTimestamp && !isNaN(nuevoInicio.getTime())) {
+                    const originalFin = new Date(originalData.finTimestamp);
+                    const duracionMs = originalFin.getTime() - originalInicio.getTime();
+                    const nuevoFin = new Date(nuevoInicio.getTime() + duracionMs);
+                    updateData.fin = firebase.firestore.Timestamp.fromDate(nuevoFin);
+                }
+            }
         }
         
         await db.collection('asistencias').doc(id).update(updateData);
@@ -1533,11 +1794,11 @@ async function guardarEdicionHora() {
         const myModal = bootstrap.Modal.getInstance(modalElement);
         myModal.hide(); // Cerrar el modal
 
-        alert("Edición guardada correctamente.");
+        alert("EdiciÃ³n guardada correctamente.");
         cargarReporteAsistencias(); // Refrescar la tabla
     } catch (error) {
         console.error("Error al editar:", error);
-        alert("No se pudo guardar la edición. Revisa tu conexión y permisos.");
+        alert("No se pudo guardar la ediciÃ³n. Revisa tu conexiÃ³n y permisos.");
     }
 }
 
@@ -1552,7 +1813,7 @@ function renderizarMatriz(registros) {
         return;
     }
 
-    // 1. Obtener fechas únicas (ignorar la hora para unificar por día)
+    // 1. Obtener fechas Ãºnicas (ignorar la hora para unificar por dÃ­a)
     const fechasSet = new Set();
     registros.forEach(r => {
         if (r.fechaObj) {
@@ -1614,7 +1875,7 @@ function renderizarMatriz(registros) {
             const dia = d.dias[f];
             if (dia) {
                 totalHorasDocente += dia.horas;
-                const mods = Array.from(dia.modalidades).join('/'); // si tuviera TP y TT en un día mostrará TP/TT
+                const mods = Array.from(dia.modalidades).join('/'); // si tuviera TP y TT en un dÃ­a mostrarÃ¡ TP/TT
                 const badgeClass = mods.includes('TP') ? 'bg-success' : 'bg-info text-dark';
                 html += `<td>${dia.horas.toFixed(2)}</td><td><span class="badge ${badgeClass}">${mods}</span></td>`;
             } else {
@@ -1633,7 +1894,7 @@ function exportarMatrizExcel() {
     const tabla = document.getElementById("tabla-datos-matriz");
     if (!tabla) return alert("No hay datos en la matriz para exportar.");
 
-    let csv = "\ufeff"; // BOM para correcta codificación en Excel de Tildes y Ñ
+    let csv = "\ufeff"; // BOM para correcta codificaciÃ³n en Excel de Tildes y Ã‘
     const rows = tabla.querySelectorAll("tr");
     
     rows.forEach(row => {
@@ -1658,7 +1919,7 @@ function exportarMatrizExcel() {
     link.click();
 }
 
-// --- AUTENTICACIÓN DEL ADMINISTRADOR ---
+// --- AUTENTICACIÃ“N DEL ADMINISTRADOR ---
 
 auth.onAuthStateChanged(user => {
     const loginContainer = document.getElementById('login-container');
@@ -1669,8 +1930,8 @@ auth.onAuthStateChanged(user => {
         if (user) {
             loginContainer.style.display = 'none';
             dashboardContainer.style.display = 'block';
-            cargarReporteAsistencias(); // Solo cargamos los datos si inició sesión
-            cargarPlanillasGuardadas(); // Carga el histórico de auditoría
+            cargarReporteAsistencias(); // Solo cargamos los datos si iniciÃ³ sesiÃ³n
+            cargarPlanillasGuardadas(); // Carga el histÃ³rico de auditorÃ­a
         } else {
             loginContainer.style.display = 'block';
             dashboardContainer.style.display = 'none';
@@ -1690,10 +1951,22 @@ async function loginAdmin(e) {
     } catch (error) {
         console.error("Error de login:", error);
         errorMsg.style.display = 'block';
-        errorMsg.innerText = "Correo o contraseña incorrectos.";
+        errorMsg.innerText = "Correo o contraseÃ±a incorrectos.";
     }
 }
 
 function logoutAdmin() {
+    if (unsubscribePlanillas) {
+        unsubscribePlanillas();
+        unsubscribePlanillas = null;
+    }
+    if (unsubscribeEstadoFirmas) {
+        unsubscribeEstadoFirmas();
+        unsubscribeEstadoFirmas = null;
+    }
+    if (unsubscribeFirmasPendientes) {
+        unsubscribeFirmasPendientes();
+        unsubscribeFirmasPendientes = null;
+    }
     auth.signOut();
 }

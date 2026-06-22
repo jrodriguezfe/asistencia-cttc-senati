@@ -83,8 +83,11 @@
                     <button class="btn btn-outline-secondary w-50" onclick="limpiarFiltros()">
                         <i class="bi bi-eraser"></i> Limpiar
                     </button>
-                    <button class="btn btn-primary w-50 fw-bold" onclick="generarReporteCierreMes()">
+                    <button class="btn btn-primary w-33 fw-bold" onclick="generarReporteCierreMes()">
                         <i class="bi bi-calculator"></i> Cierre de Mes
+                    </button>
+                    <button class="btn btn-info w-33 fw-bold text-white" onclick="generarReporteDocente()">
+                        <i class="bi bi-bar-chart-line"></i> Reporte Docente
                     </button>
                 </div>
                 <div class="modal fade" id="modalCierreMes" tabindex="-1" aria-hidden="true">
@@ -119,21 +122,43 @@
                 <table class="table table-hover align-middle">
                     <thead class="table-dark">
                         <tr>
-                            <th>Fecha</th>
-                            <th>Docente</th>
-                            <th>ID</th>
-                            <th>DNI</th>
-                            <th>Curso / NRC</th> <th>Actividad / Tema</th>
-                            <th>Horas</th>
-                            <th>Checks</th>
-                            <th>Acciones</th>
+                            <th class="sortable" style="cursor:pointer;" onclick="setAdminSort('fecha')">
+                                Fecha <span id="sort-fecha"></span>
+                            </th>
+                            <th class="sortable" style="cursor:pointer;" onclick="setAdminSort('docente')">
+                                Docente <span id="sort-docente"></span>
+                            </th>
+                            <th class="sortable" style="cursor:pointer;" onclick="setAdminSort('id')">
+                                ID <span id="sort-id"></span>
+                            </th>
+                            <th class="sortable" style="cursor:pointer;" onclick="setAdminSort('dni')">
+                                DNI <span id="sort-dni"></span>
+                            </th>
+                            <th class="sortable" style="cursor:pointer;" onclick="setAdminSort('curso')">
+                                Curso / NRC <span id="sort-curso"></span>
+                            </th>
+                            <th class="sortable" style="cursor:pointer;" onclick="setAdminSort('sesion')">
+                                N° Sesión <span id="sort-sesion"></span>
+                            </th>
+                            <th class="sortable" style="cursor:pointer;" onclick="setAdminSort('tema')">
+                                Actividad / Tema <span id="sort-tema"></span>
+                            </th>
+                            <th class="sortable" style="cursor:pointer;" onclick="setAdminSort('horas')">
+                                Horas <span id="sort-horas"></span>
+                            </th>
+                            <th class="sortable" style="cursor:pointer;" onclick="setAdminSort('checks')">
+                                Checks <span id="sort-checks"></span>
+                            </th>
+                            <th class="sortable" style="cursor:pointer;" onclick="setAdminSort('acciones')">
+                                Acciones <span id="sort-acciones"></span>
+                            </th>
                         </tr>
                     </thead>
                     <tbody id="tabla-reportes-body">
                         </tbody>
                     <tfoot class="table-light fw-bold fs-5">
                         <tr>
-                            <td colspan="6" class="text-end">Total Acumulado:</td>
+                            <td colspan="7" class="text-end">Total Acumulado:</td>
                             <td id="total-horas-acumuladas" class="text-success">0.00</td>
                             <td colspan="2"></td>
                         </tr>
@@ -165,6 +190,25 @@
                         <tr><td colspan="5" class="text-center text-muted py-3">Cargando planillas guardadas...</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Modal Reporte Docente -->
+        <div class="modal fade" id="modalReporteDocente" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-white">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-bar-chart-line"></i> Reporte por Docente</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="contenido-reporte-docente"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="button" class="btn btn-success" onclick="exportarReporteDocenteExcel()">Exportar Excel</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -212,6 +256,14 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold">Nombre del Docente:</label>
                         <input type="text" id="edit-nombre" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">NRC:</label>
+                        <input type="text" id="edit-nrc" class="form-control" placeholder="Ej: 12345">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Fecha de la Sesión:</label>
+                        <input type="date" id="edit-fecha" class="form-control">
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Horas Registradas:</label>
