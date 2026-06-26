@@ -787,18 +787,23 @@ function cargarReporteAsistencias() {
         let uniqueIDs = new Set();
 
         // 1. Procesar todos los documentos, filtrar y poblar los arreglos de datos
-    asistencias.forEach(doc => {
-            const a = doc.data;
+        snapshot.forEach(doc => {
+            const a = doc.data();
             const id = doc.id;
 
             if (a.estado === "finalizado" || a.estado === "finalizado_auto") {
                 // Redondear el tiempo trabajado al lÃ­mite inferior de cada media hora (piso)
                 a.horasTotales = Math.floor((a.horasTotales || 0) * 2) / 2;
 
-                if (a.nombre) uniqueNombres.add(a.nombre.trim());
-                if (a.nrc) uniqueNRCs.add(a.nrc.toString().trim());
-                if (a.dni) uniqueDNIs.add(a.dni.toString().trim());
-                if (a.id_docente) uniqueIDs.add(a.id_docente.toString().trim());
+                const nombreDocente = (a.nombre || '').trim();
+                const nrcDocente = a.nrc ? a.nrc.toString().trim() : '';
+                const dniDocente = a.dni ? a.dni.toString().trim() : '';
+                const idDocente = a.id_docente ? a.id_docente.toString().trim() : '';
+
+                if (nombreDocente) uniqueNombres.add(nombreDocente);
+                if (nrcDocente) uniqueNRCs.add(nrcDocente);
+                if (dniDocente) uniqueDNIs.add(dniDocente);
+                if (idDocente) uniqueIDs.add(idDocente);
 
                 const fechaObj = a.inicio ? a.inicio.toDate() : null;
                 // Usar la fecha local (YYYY-MM-DD) para que la comparación con inputs de tipo date sea correcta
@@ -808,10 +813,10 @@ function cargarReporteAsistencias() {
                     String(fechaObj.getDate()).padStart(2, '0')
                 ) : '';
                 
-                let cumpleNombre = filtroNombre === "" || a.nombre.trim().toLowerCase() === filtroNombre;
-                let cumpleNRC = filtroNRC === "" || (a.nrc && a.nrc.toString().trim().toLowerCase() === filtroNRC);
-                let cumpleDNI = filtroDni === "" || (a.dni && a.dni.toString().trim().toLowerCase() === filtroDni);
-                let cumpleID = filtroId === "" || (a.id_docente && a.id_docente.toString().trim().toLowerCase() === filtroId);
+                let cumpleNombre = filtroNombre === "" || nombreDocente.toLowerCase() === filtroNombre;
+                let cumpleNRC = filtroNRC === "" || (nrcDocente && nrcDocente.toLowerCase() === filtroNRC);
+                let cumpleDNI = filtroDni === "" || (dniDocente && dniDocente.toLowerCase() === filtroDni);
+                let cumpleID = filtroId === "" || (idDocente && idDocente.toLowerCase() === filtroId);
                 let cumpleDesde = filtroDesde ? (fechaISO >= filtroDesde) : true;
                 let cumpleHasta = filtroHasta ? (fechaISO <= filtroHasta) : true;
 
