@@ -1,4 +1,4 @@
-﻿// ConfiguraciÃ³n de Firebase (Usa las mismas de tu catÃ¡logo)
+﻿// Configuración de Firebase (Usa las mismas de tu catálogo)
 const firebaseConfig = {
   apiKey: "AIzaSyCkc78g60mGIM6E6y-6muW7icx99tzW4Fk",
   authDomain: "asistencia-cttc-senati.firebaseapp.com",
@@ -12,7 +12,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// ConfiguraciÃ³n de la segunda base de datos (Programaciones CTTC)
+// Configuración de la segunda base de datos (Programaciones CTTC)
 const firebaseProgramacionConfig = {
   apiKey: "AIzaSyB38Wbf0Q9YLz61vxQXVw1oSpMNyPVGy-c",
   authDomain: "programacion-cttc.firebaseapp.com",
@@ -38,7 +38,7 @@ window.adminSortConfig = {
     direction: 'desc'
 };
 
-// Capturar parÃ¡metros de la URL enviados desde el CatÃ¡logo
+// Capturar parámetros de la URL enviados desde el Catálogo
 const params = new URLSearchParams(window.location.search);
 const docenteNombre = params.get('name');
 const docenteUID = params.get('uid');
@@ -46,18 +46,18 @@ const docenteDNI = params.get('dni');
 const docenteID = params.get('id');
 const docenteRol = params.get('rol');
 
-// Verifica en consola si los datos llegan al cargar la pÃ¡gina
+// Verifica en consola si los datos llegan al cargar la página
 console.log("Datos recibidos:", { docenteUID, docenteNombre, docenteDNI, docenteID, docenteRol });
 
 
 
-// 1. RECUPERACIÃ“N AUTOMÃTICA AL CARGAR LA PÃGINA
+// 1. RECUPERACIÓN AUTOMÁTICA AL CARGAR LA PÁGINA
 document.addEventListener('DOMContentLoaded', async () => {
     if (document.getElementById('welcome-msg')) {
         const welcomeMsg = document.getElementById('welcome-msg');
         welcomeMsg.innerText = `Hola, ${docenteNombre || 'Docente'}`;
         
-        // Inyectar el botÃ³n de "Mis Registros" dinÃ¡micamente debajo del nombre
+        // Inyectar el botón de "Mis Registros" dinámicamente debajo del nombre
         if (!document.getElementById('btn-mis-registros')) {
             welcomeMsg.insertAdjacentHTML('afterend', `
                 <div class="mt-2 mb-3">
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         verificarFirmasPendientes();
     }
 
-    // --- NUEVO: LÃ­mite de palabras para Actividad/Tema ---
+    // --- NUEVO: Límite de palabras para Actividad/Tema ---
     const temaInput = document.getElementById('tema-input');
     if (temaInput) {
         const feedback = document.createElement('small');
@@ -104,7 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (words.length > maxWords) {
                 this.value = words.slice(0, maxWords).join(" ") + " ";
                 feedback.className = 'text-danger d-block mt-1 fw-bold';
-                feedback.innerText = `LÃ­mite alcanzado: ${maxWords}/${maxWords} palabras.`;
+                feedback.innerText = `Límite alcanzado: ${maxWords}/${maxWords} palabras.`;
             } else {
                 feedback.className = 'text-muted d-block mt-1';
                 feedback.innerText = `${words.length}/${maxWords} palabras.`;
@@ -133,17 +133,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 2. APLICAR REGLA DE LAS 8 HORAS
             if (diferenciaHoras >= 8) {
-                console.log("SesiÃ³n excediÃ³ las 8 horas. Finalizando automÃ¡ticamente...");
+                console.log("Sesión excedió las 8 horas. Finalizando automáticamente...");
                 
                 await db.collection('asistencias').doc(idDoc).update({
                     fin: firebase.firestore.FieldValue.serverTimestamp(),
                     horasTotales: 8.00, // Se castiga o limita a 8 horas
                     estado: "finalizado_auto",
-                    comentarios: (data.comentarios || "") + " [CIERRE AUTOMÃTICO POR EXCESO DE TIEMPO]"
+                    comentarios: (data.comentarios || "") + " [CIERRE AUTOMÁTICO POR EXCESO DE TIEMPO]"
                 });
 
                 localStorage.removeItem('sesion_startTime');
-                alert("TenÃ­as una sesiÃ³n abierta de hace mÃ¡s de 8 horas. Se ha cerrado automÃ¡ticamente con el lÃ­mite de tiempo permitido.");
+                alert("Tenías una sesión abierta de hace más de 8 horas. Se ha cerrado automáticamente con el límite de tiempo permitido.");
                 location.reload();
                 return;
             }
@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 3. Si es menor a 8 horas, recuperar normalmente
             currentAsistenciaId = idDoc;
             
-            // Recuperar el startTime exacto de localStorage para que no se reinicie el cronÃ³metro
+            // Recuperar el startTime exacto de localStorage para que no se reinicie el cronómetro
             const savedTime = localStorage.getItem('sesion_startTime');
             if (savedTime) {
                 startTime = new Date(savedTime);
@@ -164,10 +164,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('end-zone').style.display = 'block';
             iniciarCronometro();
             
-            // Aviso visual de sincronizaciÃ³n
+            // Aviso visual de sincronización
             const timerDisplay = document.getElementById('timer-display');
             timerDisplay.classList.add('text-success');
-            console.log("SesiÃ³n sincronizada desde la nube.");
+            console.log("Sesión sincronizada desde la nube.");
         }
     } catch (error) {
         console.error("Error en la sincronizaciÃ³n:", error);
@@ -217,7 +217,7 @@ const FERiados = [
     // Ejemplo: '2026-05-01', '2026-07-29'
 ];
 
-// FunciÃ³n para limpiar los placeholders de sesiÃ³n y tema
+// Función para limpiar los placeholders de sesión y tema
 function resetSessionPlaceholders() {
     const sesionInput = document.getElementById('sesion-input');
     const temaInput = document.getElementById('tema-input');
@@ -226,7 +226,7 @@ function resetSessionPlaceholders() {
         sesionInput.title = "";
     }
     if (temaInput) {
-        temaInput.placeholder = "Ej: IntroducciÃ³n a la seguridad...";
+        temaInput.placeholder = "Ej: Introducción a la seguridad...";
         temaInput.title = "";
     }
 }
@@ -368,15 +368,15 @@ async function buscarInfoNRC() {
         infoCard.style.display = 'none';
         
         try {
-            // Intentar buscar el NRC asumiendo que se guardÃ³ como Texto
+            // Intentar buscar el NRC asumiendo que se guardó como Texto
             let snapshot = await dbProgramacion.collection('programaciones').where('NRC', '==', nrcValue).limit(1).get();
             
-            // Si no lo encuentra, intentar buscarlo asumiendo que se guardÃ³ como NÃºmero
+            // Si no lo encuentra, intentar buscarlo asumiendo que se guardó como Número
             if (snapshot.empty) {
                 snapshot = await dbProgramacion.collection('programaciones').where('NRC', '==', Number(nrcValue)).limit(1).get();
             }
 
-            // Si aÃºn no lo encuentra, intentar con la propiedad en minÃºscula "nrc" (Texto y NÃºmero)
+            // Si aún no lo encuentra, intentar con la propiedad en minúscula "nrc" (Texto y Número)
             if (snapshot.empty) {
                 snapshot = await dbProgramacion.collection('programaciones').where('nrc', '==', nrcValue).limit(1).get();
             }
@@ -386,8 +386,8 @@ async function buscarInfoNRC() {
 
             if (!snapshot.empty) {
                 const data = snapshot.docs[0].data();
-                console.log("âœ… NRC Encontrado en Firebase:", data); // Ayuda para depurar en consola
-                // FunciÃ³n auxiliar para extraer el campo ignorando mayÃºsculas/minÃºsculas o espacios accidentales
+                console.log("✓ NRC Encontrado en Firebase:", data); // Ayuda para depurar en consola
+                // Función auxiliar para extraer el campo ignorando mayúsculas/minúsculas o espacios accidentales
                 const getField = (obj, propName) => {
                     const key = Object.keys(obj).find(k => k.trim().toLowerCase() === propName.trim().toLowerCase());
                     return key ? obj[key] : null;
@@ -395,7 +395,7 @@ async function buscarInfoNRC() {
                 
                 cursoInput.value = getField(data, 'MODULO-CURSO') || getField(data, 'CURSO') || '';
                 document.getElementById('nrc-horario').innerText = getField(data, 'Horario') || '---';
-                document.getElementById('nrc-duracion').innerText = getField(data, 'DuraciÃ³n') || getField(data, 'Duracion') || '---';
+                document.getElementById('nrc-duracion').innerText = getField(data, 'Duración') || getField(data, 'Duracion') || '---';
                 document.getElementById('nrc-inicio').innerText = getField(data, 'Fecha de inicio') || getField(data, 'Inicio') || '---';
                 document.getElementById('nrc-fin').innerText = getField(data, 'Fecha de fin') || getField(data, 'Fin') || '---';
                 
@@ -421,7 +421,7 @@ async function buscarInfoNRC() {
                         });
 
                         if (registros.length > 0) {
-                            // Ordenar descendentemente por fecha para obtener el Ãºltimo
+                            // Ordenar descendentemente por fecha para obtener el último
                             registros.sort((a, b) => {
                                 const dateA = a.inicio ? a.inicio.toDate() : new Date(0);
                                 const dateB = b.inicio ? b.inicio.toDate() : new Date(0);
@@ -433,31 +433,31 @@ async function buscarInfoNRC() {
                             const lastTema = lastAsistencia.temaDictado || '';
 
                             if (lastSesion) {
-                                sesionInput.placeholder = `Ultimo registro: ${lastSesion}`;
-                                sesionInput.title = `La Ãºltima sesiÃ³n registrada fue: ${lastSesion}`;
+                                sesionInput.placeholder = `Último registro: ${lastSesion}`;
+                                sesionInput.title = `La última sesión registrada fue: ${lastSesion}`;
                             } else {
                                 sesionInput.placeholder = "Ej: 1";
                             }
                             
                             if (lastTema) {
-                                temaInput.placeholder = `Ãšltimo tema: ${lastTema}`;
-                                temaInput.title = `Ãšltimo tema: ${lastTema}`;
+                                temaInput.placeholder = `Último tema: ${lastTema}`;
+                                temaInput.title = `Último tema: ${lastTema}`;
                             } else {
-                                temaInput.placeholder = "Ej: IntroducciÃ³n a la seguridad...";
+                                temaInput.placeholder = "Ej: Introducción a la seguridad...";
                             }
                         } else {
                             // No hay registros previos para este NRC
                             sesionInput.placeholder = "Ej: 1 (Primer registro)";
                             sesionInput.title = "Primer registro para este NRC";
-                            temaInput.placeholder = "Ej: IntroducciÃ³n a la seguridad...";
+                            temaInput.placeholder = "Ej: Introducción a la seguridad...";
                         }
                     }
                 } catch (err) {
-                    console.warn("No se pudo buscar la Ãºltima sesiÃ³n para sugerencias:", err);
+                    console.warn("No se pudo buscar la última sesión para sugerencias:", err);
                 }
                 // --- FIN: LÃ³gica para sugerir siguiente sesiÃ³n y tema ---
             } else {
-                console.warn("âš ï¸ NRC no encontrado en la base de datos.");
+                console.warn("⚠️ NRC no encontrado en la base de datos.");
                 cursoInput.value = '';
                 infoCard.style.display = 'none';
                 
@@ -469,17 +469,17 @@ async function buscarInfoNRC() {
         } catch (error) {
             console.error("Error al buscar informaciÃ³n del NRC:", error);
             loadingText.style.display = 'block';
-            loadingText.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Error: ${error.message || 'Fallo de conexiÃ³n'}`;
+            loadingText.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Error: ${error.message || 'Fallo de conexión'}`;
             loadingText.className = "form-text text-danger small mt-1";
             resetSessionPlaceholders();
         }
-    }, 800); // 800 milisegundos de espera tras la Ãºltima pulsaciÃ³n
+    }, 800); // 800 milisegundos de espera tras la última pulsación
 }
 
 async function endSession() {
-    // 1. VerificaciÃ³n de seguridad de la sesiÃ³n
+    // 1. Verificación de seguridad de la sesión
     if (!currentAsistenciaId) {
-        return alert("Error: No se encontrÃ³ una sesiÃ³n activa. Por favor, recarga la pÃ¡gina.");
+        return alert("Error: No se encontró una sesión activa. Por favor, recarga la página.");
     }
 
     // Captura de campos obligatorios
@@ -488,7 +488,7 @@ async function endSession() {
     const temaInput = document.getElementById('tema-input');
 
     if (!cursoInput || !nrcInput || !temaInput) {
-        return alert("Error tÃ©cnico: No se encuentran los campos en el HTML. Por favor, limpia la cachÃ© (Ctrl+F5).");
+        return alert("Error técnico: No se encuentran los campos en el HTML. Por favor, limpia la caché (Ctrl+F5).");
     }
 
     const curso = cursoInput.value.trim();
@@ -496,23 +496,23 @@ async function endSession() {
     const tema = temaInput.value.trim();
 
     if (!curso || !nrc || !tema) {
-        return alert("âš ï¸ Por favor, complete los campos obligatorios (Curso, NRC y Tema) antes de finalizar.");
+        return alert("⚠️ Por favor, complete los campos obligatorios (Curso, NRC y Tema) antes de finalizar.");
     }
 
     // Validar cantidad de palabras en el tema como medida de seguridad
     const temaWords = tema.split(/\s+/).filter(w => w.length > 0);
     if (temaWords.length > 15) {
-        return alert("âš ï¸ El tema dictado es muy extenso. Por favor, resÃºmalo a un mÃ¡ximo de 15 palabras.");
+        return alert("⚠️ El tema dictado es muy extenso. Por favor, resúmalo a un máximo de 15 palabras.");
     }
 
-    // 2. Deshabilitar el botÃ³n para evitar el "Doble Clic"
+    // 2. Deshabilitar el botón para evitar el "Doble Clic"
     const btnFinalizar = document.querySelector('#end-zone .btn-danger');
     if (btnFinalizar) {
         btnFinalizar.disabled = true;
         btnFinalizar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
     }
 
-    // 3. CÃ¡lculo seguro de las horas
+    // 3. Cálculo seguro de las horas
     let horasCalculadas = 0;
     if (startTime) {
         const endTime = new Date();
@@ -545,11 +545,11 @@ async function endSession() {
         
         clearInterval(timerInterval);
         localStorage.removeItem('sesion_startTime');
-        alert("âœ… Jornada guardada y sincronizada exitosamente.");
+        alert("✓ Jornada guardada y sincronizada exitosamente.");
         location.reload(); 
     } catch (error) {
         console.error("Error al finalizar:", error);
-        alert("âŒ Error al finalizar la sesiÃ³n. Verifique su conexiÃ³n.");
+        alert("⚠️ Error al finalizar la sesión. Verifique su conexión.");
         
         // Si ocurre un error, volvemos a habilitar el botÃ³n para reintentar
         if (btnFinalizar) {
@@ -2024,7 +2024,7 @@ async function generarPDF(firmaDocId, allowDraft = false) {
         pdf.setFontSize(14);
         pdf.setFont("helvetica", "bold");
         pdf.setTextColor(0, 143, 57);
-        pdf.text("REPORTE MENSUAL DE ASISTENCIA TÃ‰CNICA Y CAPACITACIÃ“N", 105, 20, { align: "center" });
+        pdf.text("REPORTE MENSUAL DE ASISTENCIA TÉCNICA Y CAPACITACIÓN", 105, 20, { align: "center" });
         
         pdf.setFontSize(11);
         pdf.setFont("helvetica", "normal");
