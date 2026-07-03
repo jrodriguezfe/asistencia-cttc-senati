@@ -2006,8 +2006,10 @@ async function generarPDF(firmaDocId, allowDraft = false) {
         
         if(!allowDraft && (!data.firmaDocente || !data.firmaJefe)) return alert("No se puede generar el PDF porque faltan firmas.");
         
-        if (!window.jspdf) {
-            return alert("La librerÃ­a para generar PDF no estÃ¡ cargada. Actualiza la pÃ¡gina e intenta de nuevo.");
+        const jsPDFConstructor = window.jspdf?.jsPDF || window.jsPDF || window.jspdf;
+        if (!jsPDFConstructor || typeof jsPDFConstructor !== 'function') {
+            console.error('jsPDF no disponible:', window.jspdf, window.jsPDF);
+            return alert("La librería para generar PDF no está cargada. Actualiza la página e intenta de nuevo.");
         }
 
         const getImgFormat = (b64) => {
@@ -2017,8 +2019,7 @@ async function generarPDF(firmaDocId, allowDraft = false) {
             return "PNG"; 
         };
 
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF();
+        const pdf = new jsPDFConstructor();
         
         pdf.setFontSize(14);
         pdf.setFont("helvetica", "bold");
