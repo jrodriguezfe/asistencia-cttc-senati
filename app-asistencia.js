@@ -1388,13 +1388,16 @@ async function eliminarAsistencia(id) {
 }
 
 function obtenerNombreMes(fechaStr) {
-    if (!fechaStr) return "Periodo Personalizado";
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    const partes = fechaStr.split("-"); // Formato YYYY-MM-DD
-    if(partes.length >= 2) {
-        return meses[parseInt(partes[1]) - 1] + " " + partes[0];
+    let fecha;
+
+    if (fechaStr) {
+        const partes = fechaStr.split('-'); // YYYY-MM-DD
+        fecha = new Date(partes[0], partes[1] - 1, partes[2]);
+    } else {
+        fecha = new Date(); // Usar fecha actual si no hay filtro
     }
-    return "Periodo Personalizado";
+    return meses[fecha.getMonth()] + " " + fecha.getFullYear();
 }
 
 function generarReporteCierreMes() {
@@ -1452,8 +1455,8 @@ function generarReporteCierreMes() {
     if (footer) {
         footer.innerHTML = `
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-            <button type="button" class="btn btn-primary fw-bold" onclick="guardarPlanillaBD('${nombrePeriodo}', event)">
-                <i class="bi bi-save"></i> Guardar Planilla ${nombrePeriodo}
+            <button type="button" class="btn btn-primary fw-bold" id="btn-guardar-planilla" onclick="guardarPlanillaBD()">
+                <i class="bi bi-save"></i> Guardar Planilla para ${nombrePeriodo}
             </button>
             <button type="button" class="btn btn-success" onclick="exportarCierreExcel()">Exportar CSV</button>
         `;
@@ -1482,13 +1485,18 @@ function exportarCierreExcel() {
 
 // --- FUNCIONES DE AUDITORÃA Y PLANILLAS ---
 
-async function guardarPlanillaBD(periodo, event) {
+async function guardarPlanillaBD() {
     if (!auth.currentUser) return alert("No tienes permisos para esta acciÃ³n.");
     if (!datosCierreMes || datosCierreMes.length === 0) return alert("No hay datos para guardar.");
 
+    const filtroDesde = document.getElementById('filtro-desde').value;
+    const periodo = obtenerNombreMes(filtroDesde);
+
     if (!confirm(`Â¿EstÃ¡s seguro de que deseas guardar la planilla de ${periodo} de forma permanente?`)) return;
 
-    const btn = event.currentTarget;
+    const btn = document.getElementById('btn-guardar-planilla');
+    if (!btn) return alert('Error: No se encontró el botón de guardado.');
+
     const originalText = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
     btn.disabled = true;
