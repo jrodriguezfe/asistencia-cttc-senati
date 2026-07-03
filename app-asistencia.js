@@ -790,7 +790,7 @@ async function verMisPlanillas() {
         query = query.where('docenteDni', '==', docenteDNI);
     }
 
-    unsubscribeDocentePlanillas = query.onSnapshot(snapshot => {
+    query.get().then(snapshot => {
             const tbody = document.getElementById('tabla-mis-planillas');
             let html = '';
             const docs = [];
