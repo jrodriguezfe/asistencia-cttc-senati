@@ -1409,8 +1409,8 @@ function generarReporteCierreMes() {
         return alert("No hay datos para generar el reporte. Filtre por fechas primero.");
     }
 
-    const filtroDesde = document.getElementById('filtro-desde').value;
-    const nombrePeriodo = obtenerNombreMes(filtroDesde);
+    const filtroHasta = document.getElementById('filtro-hasta').value;
+    const nombrePeriodo = obtenerNombreMes(filtroHasta);
 
     // Agrupar horas por docente
     window.filteredAsistencias.forEach(item => {
@@ -1427,8 +1427,14 @@ function generarReporteCierreMes() {
         resumen[key].horas += horas;
     });
 
+    const totalHorasMes = Object.values(resumen).reduce((sum, d) => sum + d.horas, 0);
+
     // Construir tabla del modal
     let html = `
+        <div class="mb-3">
+            <span class="fw-bold">Total general del mes:</span>
+            <span class="text-success fw-bold">${totalHorasMes.toFixed(2)} hrs</span>
+        </div>
         <table class="table table-bordered">
             <thead class="table-light">
                 <tr><th>Docente</th><th>ID</th><th>DNI</th><th class="text-end">Total Horas</th></tr>
@@ -1487,13 +1493,13 @@ function exportarCierreExcel() {
 // --- FUNCIONES DE AUDITORÃA Y PLANILLAS ---
 
 async function guardarPlanillaBD() {
-    if (!auth.currentUser) return alert("No tienes permisos para esta acciÃ³n.");
+    if (!auth.currentUser) return alert("No tienes permisos para esta acción.");
     if (!datosCierreMes || datosCierreMes.length === 0) return alert("No hay datos para guardar.");
 
-    const filtroDesde = document.getElementById('filtro-desde').value;
-    const periodo = obtenerNombreMes(filtroDesde);
+    const filtroHasta = document.getElementById('filtro-hasta').value;
+    const periodo = obtenerNombreMes(filtroHasta);
 
-    if (!confirm(`Â¿EstÃ¡s seguro de que deseas guardar la planilla de ${periodo} de forma permanente?`)) return;
+    if (!confirm(`¿Estás seguro de que deseas guardar la planilla de ${periodo} de forma permanente?`)) return;
 
     const btn = document.getElementById('btn-guardar-planilla');
     const originalText = btn ? btn.innerHTML : '';
