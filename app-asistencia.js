@@ -783,26 +783,20 @@ async function verMisPlanillas() {
         unsubscribeDocentePlanillas = null;
     }
 
-    let query = db.collection('firmas_planillas');
-    if (docenteUID) {
-        query = query.where('docenteUID', '==', docenteUID);
-    } else {
-        query = query.where('docenteDni', '==', docenteDNI);
-    }
+    const normalizedUID = docenteUID?.toString().trim();
+    const normalizedDNI = docenteDNI?.toString().trim();
+    const normalizedID = docenteID?.toString().trim();
+    const numericDNI = normalizedDNI && /^\\d+$/.test(normalizedDNI) ? Number(normalizedDNI) : null;
+    const numericID = normalizedID && /^\d+$/.test(normalizedID) ? Number(normalizedID) : null;
 
-    const loadResults = async (queryToUse, fallbackText) => {
+    const loadResults = async (queryToUse) => {
         const snapshot = await queryToUse.get();
         const tbody = document.getElementById('tabla-mis-planillas');
         let html = '';
         const docs = [];
 
         if (snapshot.empty) {
-            if (fallbackText) {
-                return false;
-            }
-            tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-muted">No se encontraron planillas asociadas a tu DNI.</td></tr>';
-            window.docentePlanillasData = [];
-            return true;
+            return false;
         }
 
         snapshot.docs.forEach(doc => {
@@ -844,10 +838,53 @@ async function verMisPlanillas() {
         return true;
     };
 
-    let loaded = await loadResults(query, false);
-    if (!loaded && docenteUID) {
-        // Intentamos una búsqueda por DNI si no hay resultados por UID.
-        await loadResults(db.collection('firmas_planillas').where('docenteDni', '==', docenteDNI), false);
+    let loaded = false;
+    console.log('Buscando planillas de docente', { uid: normalizedUID, dni: normalizedDNI, id: normalizedID, numericDNI, numericID });
+
+    if (normalizedUID) {
+        loaded = await loadResults(db.collection('firmas_planillas').where('docenteUID', '==', normalizedUID));
+    }
+
+    if (!loaded && normalizedDNI) {
+        loaded = await loadResults(db.collection('firmas_planillas').where('docenteDni', '==', normalizedDNI));
+    }
+
+    if (!loaded && numericDNI !== null) {
+        loaded = await loadResults(db.collection('firmas_planillas').where('docenteDni', '==', numericDNI));
+    }
+
+    if (!loaded && normalizedID) {
+        loaded = await loadResults(db.collection('firmas_planillas').where('docenteId', '==', normalizedID));
+    }
+
+    if (!loaded && numericID !== null) {
+        loaded = await loadResults(db.collection('firmas_planillas').where('docenteId', '==', numericID));
+    }
+
+    if (!loaded && normalizedDNI) {
+        loaded = await loadResults(db.collection('firmas_planillas').where('dni', '==', normalizedDNI));
+    }
+
+    if (!loaded && numericDNI !== null) {
+        loaded = await loadResults(db.collection('firmas_planillas').where('dni', '==', numericDNI));
+    }
+
+    if (!loaded && normalizedID) {
+        loaded = await loadResults(db.collection('firmas_planillas').where('id_docente', '==', normalizedID));
+    }
+
+    if (!loaded && numericID !== null) {
+        loaded = await loadResults(db.collection('firmas_planillas').where('id_docente', '==', numericID));
+    }
+
+    if (!loaded && normalizedUID) {
+        loaded = await loadResults(db.collection('firmas_planillas').where('uid', '==', normalizedUID));
+    }
+
+    if (!loaded) {
+        const tbody = document.getElementById('tabla-mis-planillas');
+        tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-muted">No se encontraron planillas asociadas a tu docente.</td></tr>';
+        window.docentePlanillasData = [];
     }
 }
 
