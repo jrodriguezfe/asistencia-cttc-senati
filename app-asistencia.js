@@ -790,54 +790,65 @@ async function verMisPlanillas() {
         query = query.where('docenteDni', '==', docenteDNI);
     }
 
-    query.get().then(snapshot => {
-            const tbody = document.getElementById('tabla-mis-planillas');
-            let html = '';
-            const docs = [];
+    const loadResults = async (queryToUse, fallbackText) => {
+        const snapshot = await queryToUse.get();
+        const tbody = document.getElementById('tabla-mis-planillas');
+        let html = '';
+        const docs = [];
 
-            if (snapshot.empty) {
-                tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-muted">No se encontraron planillas asociadas a tu DNI.</td></tr>';
-                window.docentePlanillasData = [];
-                return;
+        if (snapshot.empty) {
+            if (fallbackText) {
+                return false;
             }
+            tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-muted">No se encontraron planillas asociadas a tu DNI.</td></tr>';
+            window.docentePlanillasData = [];
+            return true;
+        }
 
-            snapshot.docs.forEach(doc => {
-                const data = doc.data();
-                docs.push({ id: doc.id, ...data });
-            });
-
-            window.docentePlanillasData = docs;
-            docs.sort((a, b) => {
-                const fa = a.fechaCreacion ? a.fechaCreacion.toDate() : new Date(0);
-                const fb = b.fechaCreacion ? b.fechaCreacion.toDate() : new Date(0);
-                return fb - fa;
-            });
-
-            docs.forEach(data => {
-                const estado = data.firmaDocente && data.firmaJefe ? '<span class="badge bg-success">Firmado</span>' : '<span class="badge bg-warning text-dark">Pendiente</span>';
-                const firmaDocente = data.firmaDocente ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>';
-                const firmaJefe = data.firmaJefe ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>';
-
-                html += `
-                    <tr>
-                        <td class="fw-bold">${data.mes || 'Sin periodo'}</td>
-                        <td>${Number(data.horasTotales || 0).toFixed(2)}</td>
-                        <td>${estado}</td>
-                        <td>${firmaDocente}</td>
-                        <td>${firmaJefe}</td>
-                        <td class="text-nowrap">
-                            <button class="btn btn-sm btn-outline-primary me-1" onclick="descargarPlanillaDocente('${data.id}')">
-                                <i class="bi bi-download"></i> Descargar
-                            </button>
-                            ${data.firmaDocente ? '' : `<button class="btn btn-sm btn-outline-success" onclick="abrirModalFirmaDocente('${data.id}')">
-                                <i class="bi bi-pen-fill"></i> Firmar
-                            </button>`}
-                        </td>
-                    </tr>`;
-            });
-
-            tbody.innerHTML = html;
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            docs.push({ id: doc.id, ...data });
         });
+
+        window.docentePlanillasData = docs;
+        docs.sort((a, b) => {
+            const fa = a.fechaCreacion ? a.fechaCreacion.toDate() : new Date(0);
+            const fb = b.fechaCreacion ? b.fechaCreacion.toDate() : new Date(0);
+            return fb - fa;
+        });
+
+        docs.forEach(data => {
+            const estado = data.firmaDocente && data.firmaJefe ? '<span class="badge bg-success">Firmado</span>' : '<span class="badge bg-warning text-dark">Pendiente</span>';
+            const firmaDocente = data.firmaDocente ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>';
+            const firmaJefe = data.firmaJefe ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>';
+
+            html += `
+                <tr>
+                    <td class="fw-bold">${data.mes || 'Sin periodo'}</td>
+                    <td>${Number(data.horasTotales || 0).toFixed(2)}</td>
+                    <td>${estado}</td>
+                    <td>${firmaDocente}</td>
+                    <td>${firmaJefe}</td>
+                    <td class="text-nowrap">
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="descargarPlanillaDocente('${data.id}')">
+                            <i class="bi bi-download"></i> Descargar
+                        </button>
+                        ${data.firmaDocente ? '' : `<button class="btn btn-sm btn-outline-success" onclick="abrirModalFirmaDocente('${data.id}')">
+                            <i class="bi bi-pen-fill"></i> Firmar
+                        </button>`}
+                    </td>
+                </tr>`;
+        });
+
+        tbody.innerHTML = html;
+        return true;
+    };
+
+    let loaded = await loadResults(query, false);
+    if (!loaded && docenteUID) {
+        // Intentamos una búsqueda por DNI si no hay resultados por UID.
+        await loadResults(db.collection('firmas_planillas').where('docenteDni', '==', docenteDNI), false);
+    }
 }
 
 function descargarPlanillaDocente(planillaId) {
