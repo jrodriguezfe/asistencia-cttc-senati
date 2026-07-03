@@ -783,9 +783,14 @@ async function verMisPlanillas() {
         unsubscribeDocentePlanillas = null;
     }
 
-    unsubscribeDocentePlanillas = db.collection('firmas_planillas')
-        .where('docenteDni', '==', docenteDNI)
-        .onSnapshot(snapshot => {
+    let query = db.collection('firmas_planillas');
+    if (docenteUID) {
+        query = query.where('docenteUID', '==', docenteUID);
+    } else {
+        query = query.where('docenteDni', '==', docenteDNI);
+    }
+
+    unsubscribeDocentePlanillas = query.onSnapshot(snapshot => {
             const tbody = document.getElementById('tabla-mis-planillas');
             let html = '';
             const docs = [];
@@ -1252,12 +1257,14 @@ function generarReporteCierreMes() {
         const nombre = item.data.nombre || 'Desconocido';
         const idDocente = item.data.id_docente || 'S/N';
         const dni = item.data.dni || 'S/N';
+        const uidDocente = item.data.uid || '';
         const horas = item.data.horasTotales || 0;
+        const key = uidDocente || dni || nombre;
         
-        if (!resumen[nombre]) {
-            resumen[nombre] = { nombre, id: idDocente, dni, horas: 0 };
+        if (!resumen[key]) {
+            resumen[key] = { nombre, id: idDocente, dni, uid: uidDocente, horas: 0 };
         }
-        resumen[nombre].horas += horas;
+        resumen[key].horas += horas;
     });
 
     // Construir tabla del modal
@@ -1270,7 +1277,7 @@ function generarReporteCierreMes() {
     
     for (const key in resumen) {
         const d = resumen[key];
-        datosCierreMes.push({ docente: d.nombre, id: d.id, dni: d.dni, horas: d.horas.toFixed(2) });
+        datosCierreMes.push({ docente: d.nombre, id: d.id, dni: d.dni, uid: d.uid || '', horas: d.horas.toFixed(2) });
         html += `
             <tr>
                 <td>${d.nombre}</td>
@@ -1353,6 +1360,7 @@ async function guardarPlanillaBD(periodo, event) {
                 mes: periodo,
                 docenteNombre: r.docente,
                 docenteId: r.id,
+                docenteUID: r.uid || null,
                 docenteDni: r.dni,
                 horasTotales: Number(r.horas) || 0,
                 detalles: detallesAuditoria.filter(d => (d.dni || '').toString().trim() === (r.dni || '').toString().trim()),
