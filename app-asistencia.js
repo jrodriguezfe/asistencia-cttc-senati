@@ -1494,6 +1494,11 @@ async function guardarPlanillaBD(periodo, event) {
     btn.disabled = true;
 
     try {
+        const usuario = auth.currentUser;
+        const creador = usuario?.email || usuario?.uid || 'Admin desconocido';
+
+        console.log('Guardando planilla', { periodo, creador, totalDocentes: datosCierreMes.length, registros: window.filteredAsistencias.length });
+
         const detallesAuditoria = window.filteredAsistencias.map(item => {
             const dataLimpia = { ...item.data };
             Object.keys(dataLimpia).forEach(key => {
@@ -1505,7 +1510,7 @@ async function guardarPlanillaBD(periodo, event) {
         const planillaRef = await db.collection('planillas').add({
             mes: periodo,
             fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
-            creadoPor: auth.currentUser.email,
+            creadoPor: creador,
             resumen: datosCierreMes,
             detalles: detallesAuditoria // Copia de seguridad inmutable de las clases exactas
         });
