@@ -291,9 +291,10 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="d-flex justify-content-between mb-3">
+                    <div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
                         <button class="btn btn-primary" onclick="generarSolicitudesFirma()"><i class="bi bi-send"></i> Generar/Enviar Solicitudes a Docentes</button>
                         <button class="btn btn-success" onclick="firmarComoJefeMasivo()"><i class="bi bi-pen-fill"></i> Firmar Todos como Jefe</button>
+                        <button class="btn btn-danger" onclick="borrarFirmasDePlanilla()"><i class="bi bi-trash"></i> Eliminar todas las solicitudes</button>
                     </div>
                     <div class="table-responsive">
                         <table class="table table-hover align-middle">
@@ -306,6 +307,7 @@
                                     <th>Firma Jefe</th>
                                     <th>Estado</th>
                                     <th>PDF</th>
+                                    <th>Eliminar</th>
                                 </tr>
                             </thead>
                             <tbody id="tabla-firmas-body">

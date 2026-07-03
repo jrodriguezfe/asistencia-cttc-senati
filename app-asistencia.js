@@ -1743,8 +1743,13 @@ function cargarEstadoFirmas() {
                     <td>${estadoJefe}</td>
                     <td>${estadoGral}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-danger" onclick="generarPDF('${doc.id}')" ${!(data.firmaDocente && data.firmaJefe) ? 'disabled title="Faltan firmas para generar PDF"' : 'title="Descargar PDF Final"'}>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="generarPDF('${doc.id}')" ${!(data.firmaDocente && data.firmaJefe) ? 'disabled title="Faltan firmas para generar PDF"' : 'title="Descargar PDF Final"'}>
                             <i class="bi bi-file-earmark-pdf-fill"></i> PDF
+                        </button>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger" onclick="borrarFirmaDocumento('${doc.id}')" title="Eliminar solicitud de firma">
+                            <i class="bi bi-trash"></i>
                         </button>
                     </td>
                 </tr>`;
@@ -1755,10 +1760,10 @@ function cargarEstadoFirmas() {
 }
 
 async function generarSolicitudesFirma() {
-    if(!confirm("Â¿Deseas generar solicitudes de firma para todos los docentes de esta planilla que aÃºn no tienen una?")) return;
+    if(!confirm("¿Deseas generar solicitudes de firma para todos los docentes de esta planilla que aún no tienen una?")) return;
     try {
         const docRef = await db.collection('planillas').doc(currentPlanillaId).get();
-        if(!docRef.exists) return alert("Error: No se encontrÃ³ la planilla origen.");
+        if(!docRef.exists) return alert("Error: No se encontró la planilla origen.");
         const planillaData = docRef.data();
         
         const resumen = planillaData.resumen || [];
@@ -1788,6 +1793,44 @@ async function generarSolicitudesFirma() {
     } catch(e) {
         console.error("Error al generar solicitudes:", e);
         alert("OcurriÃ³ un error al generar las solicitudes.");
+    }
+}
+
+async function borrarFirmasDePlanilla() {
+    if (!auth.currentUser) return alert("Acceso denegado.");
+    if (!currentPlanillaId) return alert("No hay una planilla seleccionada.");
+    if (!confirm("Esta acción eliminará todas las solicitudes de firma de esta planilla. ¿Deseas continuar?")) return;
+
+    try {
+        const snapshot = await db.collection('firmas_planillas')
+            .where('planillaId', '==', currentPlanillaId)
+            .get();
+
+        if (snapshot.empty) {
+            return alert("No se encontraron solicitudes de firma para borrar.");
+        }
+
+        const batch = db.batch();
+        snapshot.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+
+        alert(`Se eliminaron ${snapshot.size} solicitudes de firma.`);
+    } catch (error) {
+        console.error("Error al borrar firmas de planilla:", error);
+        alert("Ocurrió un error al eliminar las solicitudes de firma.");
+    }
+}
+
+async function borrarFirmaDocumento(firmaDocId) {
+    if (!auth.currentUser) return alert("Acceso denegado.");
+    if (!confirm("¿Seguro quieres eliminar esta solicitud de firma?")) return;
+
+    try {
+        await db.collection('firmas_planillas').doc(firmaDocId).delete();
+        alert("Solicitud de firma eliminada correctamente.");
+    } catch (error) {
+        console.error("Error al borrar el documento de firma:", error);
+        alert("No se pudo eliminar la solicitud de firma.");
     }
 }
 
