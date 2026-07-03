@@ -27,11 +27,12 @@ const dbProgramacion = appProgramacion.firestore();
 let timerInterval;
 let startTime;
 let currentAsistenciaId;
-let datosCierreMes = []; // Variable global para guardar el Ãºltimo reporte generado
+let datosCierreMes = []; // Variable global para guardar el último reporte generado
 let adminVerTodos = false; // Estado para limitar la vista de reportes en admin
 let unsubscribePlanillas = null;
 let unsubscribeEstadoFirmas = null;
 let unsubscribeFirmasPendientes = null;
+let unsubscribeDocentePlanillas = null;
 window.adminSortConfig = {
     field: 'fecha',
     direction: 'desc'
@@ -62,6 +63,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="mt-2 mb-3">
                     <button id="btn-mis-registros" class="btn btn-success btn-sm rounded-pill fw-bold shadow-sm" onclick="verMisRegistros()">
                         <i class="bi bi-clock-history"></i> Mis Registros
+                    </button>
+                    <button id="btn-mis-planillas" class="btn btn-outline-primary btn-sm rounded-pill fw-bold shadow-sm ms-2" onclick="verMisPlanillas()">
+                        <i class="bi bi-file-earmark-text"></i> Mis Planillas
                     </button>
                 </div>
             `);
@@ -729,6 +733,115 @@ function limpiarFiltrosMisRegistros() {
     verMisRegistros();
 }
 
+async function verMisPlanillas() {
+    if (!docenteDNI) return alert("Error: DNI no detectado.");
+
+    if (!document.getElementById('modalMisPlanillas')) {
+        const modalHTML = `
+        <div class="modal fade" id="modalMisPlanillas" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-text"></i> Mis Planillas</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info mb-3">
+                            <strong>Docente:</strong> ${docenteNombre || '---'}<br>
+                            <strong>DNI:</strong> ${docenteDNI}
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle text-center">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Periodo</th>
+                                        <th>Horas</th>
+                                        <th>Estado</th>
+                                        <th>Firma Docente</th>
+                                        <th>Firma Jefe</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-mis-planillas">
+                                    <tr><td colspan="6" class="py-4 text-muted">Buscando planillas...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+    }
+
+    const modalElement = document.getElementById('modalMisPlanillas');
+    const myModal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    myModal.show();
+
+    if (unsubscribeDocentePlanillas) {
+        unsubscribeDocentePlanillas();
+        unsubscribeDocentePlanillas = null;
+    }
+
+    unsubscribeDocentePlanillas = db.collection('firmas_planillas')
+        .where('docenteDni', '==', docenteDNI)
+        .onSnapshot(snapshot => {
+            const tbody = document.getElementById('tabla-mis-planillas');
+            let html = '';
+            const docs = [];
+
+            if (snapshot.empty) {
+                tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-muted">No se encontraron planillas asociadas a tu DNI.</td></tr>';
+                window.docentePlanillasData = [];
+                return;
+            }
+
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                docs.push({ id: doc.id, ...data });
+            });
+
+            window.docentePlanillasData = docs;
+            docs.sort((a, b) => {
+                const fa = a.fechaCreacion ? a.fechaCreacion.toDate() : new Date(0);
+                const fb = b.fechaCreacion ? b.fechaCreacion.toDate() : new Date(0);
+                return fb - fa;
+            });
+
+            docs.forEach(data => {
+                const estado = data.firmaDocente && data.firmaJefe ? '<span class="badge bg-success">Firmado</span>' : '<span class="badge bg-warning text-dark">Pendiente</span>';
+                const firmaDocente = data.firmaDocente ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>';
+                const firmaJefe = data.firmaJefe ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-secondary">No</span>';
+
+                html += `
+                    <tr>
+                        <td class="fw-bold">${data.mes || 'Sin periodo'}</td>
+                        <td>${Number(data.horasTotales || 0).toFixed(2)}</td>
+                        <td>${estado}</td>
+                        <td>${firmaDocente}</td>
+                        <td>${firmaJefe}</td>
+                        <td class="text-nowrap">
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="descargarPlanillaDocente('${data.id}')">
+                                <i class="bi bi-download"></i> Descargar
+                            </button>
+                            ${data.firmaDocente ? '' : `<button class="btn btn-sm btn-outline-success" onclick="abrirModalFirmaDocente('${data.id}')">
+                                <i class="bi bi-pen-fill"></i> Firmar
+                            </button>`}
+                        </td>
+                    </tr>`;
+            });
+
+            tbody.innerHTML = html;
+        });
+}
+
+function descargarPlanillaDocente(planillaId) {
+    if (!window.docentePlanillasData) return alert('No hay planillas cargadas.');
+    const planilla = window.docentePlanillasData.find(d => d.id === planillaId);
+    if (!planilla) return alert('Planilla no encontrada.');
+    generarPDF(planillaId, true);
+}
+
 function descargarMisRegistros() {
     if (!window.misRegistrosData || window.misRegistrosData.length === 0) return alert("No hay datos para descargar.");
 
@@ -1218,8 +1331,6 @@ async function guardarPlanillaBD(periodo, event) {
     btn.disabled = true;
 
     try {
-        // Se guarda un historial crudo de cada registro exacto (auditorÃ­a profunda)
-        // SANITIZACIÃ“N: Limpiamos cualquier campo 'undefined' que pueda hacer que Firebase rechace la peticiÃ³n
         const detallesAuditoria = window.filteredAsistencias.map(item => {
             const dataLimpia = { ...item.data };
             Object.keys(dataLimpia).forEach(key => {
@@ -1228,7 +1339,7 @@ async function guardarPlanillaBD(periodo, event) {
             return dataLimpia;
         });
 
-        await db.collection('planillas').add({
+        const planillaRef = await db.collection('planillas').add({
             mes: periodo,
             fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
             creadoPor: auth.currentUser.email,
@@ -1236,7 +1347,22 @@ async function guardarPlanillaBD(periodo, event) {
             detalles: detallesAuditoria // Copia de seguridad inmutable de las clases exactas
         });
 
-        alert(`Planilla de ${periodo} guardada exitosamente y bloqueada para auditorÃ­a.`);
+        for (const r of datosCierreMes) {
+            await db.collection('firmas_planillas').add({
+                planillaId: planillaRef.id,
+                mes: periodo,
+                docenteNombre: r.docente,
+                docenteId: r.id,
+                docenteDni: r.dni,
+                horasTotales: Number(r.horas) || 0,
+                detalles: detallesAuditoria.filter(d => (d.dni || '').toString().trim() === (r.dni || '').toString().trim()),
+                firmaJefe: null,
+                firmaDocente: null,
+                fechaCreacion: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+
+        alert(`Planilla de ${periodo} guardada exitosamente y bloqueada para auditoría. Se generaron solicitudes de firma.`);
         
         const modalElement = document.getElementById('modalCierreMes');
         const myModal = bootstrap.Modal.getInstance(modalElement);
@@ -1531,12 +1657,20 @@ function verificarFirmasPendientes() {
         });
 }
 
-function abrirModalFirmaDocente() {
-    if (!window.firmasPendientesDocs || window.firmasPendientesDocs.length === 0) return;
-    
-    const docData = window.firmasPendientesDocs[0];
-    currentFirmaDocId = docData.id;
-    
+function abrirModalFirmaDocente(firmaDocId = null) {
+    let docData;
+    if (firmaDocId) {
+        currentFirmaDocId = firmaDocId;
+        // Si el docente abre una planilla directa desde la lista, intentamos usar los datos ya cargados.
+        docData = (window.docentePlanillasData || []).find(d => d.id === firmaDocId);
+    }
+
+    if (!docData) {
+        if (!window.firmasPendientesDocs || window.firmasPendientesDocs.length === 0) return;
+        docData = window.firmasPendientesDocs[0];
+        currentFirmaDocId = docData.id;
+    }
+
     if (!document.getElementById('modalFirmaDocente')) {
         const modalHTML = `
         <div class="modal fade" id="modalFirmaDocente" tabindex="-1" aria-hidden="true">
@@ -1573,7 +1707,7 @@ function abrirModalFirmaDocente() {
     document.getElementById('fd-horas').innerText = docData.horasTotales;
     
     const restantesEl = document.getElementById('fd-restantes');
-    if(window.firmasPendientesDocs.length > 1) {
+    if(window.firmasPendientesDocs && window.firmasPendientesDocs.length > 1) {
         restantesEl.innerText = `1 de ${window.firmasPendientesDocs.length} documentos pendientes`;
     } else {
         restantesEl.innerText = '';
@@ -1611,13 +1745,13 @@ async function guardarFirmaDocente() {
     }
 }
 
-async function generarPDF(firmaDocId) {
+async function generarPDF(firmaDocId, allowDraft = false) {
     try {
         const docRef = await db.collection('firmas_planillas').doc(firmaDocId).get();
         if(!docRef.exists) return alert("Error: No se encontrÃ³ el documento de firma.");
         const data = docRef.data();
         
-        if(!data.firmaDocente || !data.firmaJefe) return alert("No se puede generar el PDF porque faltan firmas.");
+        if(!allowDraft && (!data.firmaDocente || !data.firmaJefe)) return alert("No se puede generar el PDF porque faltan firmas.");
         
         if (!window.jspdf) {
             return alert("La librerÃ­a para generar PDF no estÃ¡ cargada. Actualiza la pÃ¡gina e intenta de nuevo.");
