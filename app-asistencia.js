@@ -1391,7 +1391,8 @@ function obtenerNombreMes(fechaStr) {
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     let fecha;
 
-    if (fechaStr) {
+    // Si fechaStr no es un valor válido (es nulo, undefined o una cadena vacía), usar la fecha actual.
+    if (fechaStr && fechaStr.trim() !== '') {
         const partes = fechaStr.split('-'); // YYYY-MM-DD
         fecha = new Date(partes[0], partes[1] - 1, partes[2]);
     } else {
@@ -1495,11 +1496,16 @@ async function guardarPlanillaBD() {
     if (!confirm(`Â¿EstÃ¡s seguro de que deseas guardar la planilla de ${periodo} de forma permanente?`)) return;
 
     const btn = document.getElementById('btn-guardar-planilla');
-    if (!btn) return alert('Error: No se encontró el botón de guardado.');
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+        btn.disabled = true;
+    }
 
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
-    btn.disabled = true;
+    let planillaGuardada = false;
+    let planillaId = null;
+    let firmasGeneradas = 0;
+    let firmasError = null;
 
     try {
         const usuario = auth.currentUser;
@@ -1507,7 +1513,7 @@ async function guardarPlanillaBD() {
 
         console.log('Guardando planilla', { periodo, creador, totalDocentes: datosCierreMes.length, registros: window.filteredAsistencias.length });
 
-        const detallesAuditoria = window.filteredAsistencias.map(item => {
+        const detallesAuditoria = (window.filteredAsistencias || []).map(item => {
             const dataLimpia = { ...item.data };
             Object.keys(dataLimpia).forEach(key => {
                 if (dataLimpia[key] === undefined) delete dataLimpia[key];
@@ -1523,34 +1529,55 @@ async function guardarPlanillaBD() {
             detalles: detallesAuditoria // Copia de seguridad inmutable de las clases exactas
         });
 
+        planillaGuardada = true;
+        planillaId = planillaRef.id;
+
         for (const r of datosCierreMes) {
-            await db.collection('firmas_planillas').add({
-                planillaId: planillaRef.id,
-                mes: periodo,
-                docenteNombre: r.docente,
-                docenteId: r.id,
-                docenteUID: r.uid || null,
-                docenteDni: r.dni,
-                horasTotales: Number(r.horas) || 0,
-                detalles: detallesAuditoria.filter(d => (d.dni || '').toString().trim() === (r.dni || '').toString().trim()),
-                firmaJefe: null,
-                firmaDocente: null,
-                fechaCreacion: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            try {
+                await db.collection('firmas_planillas').add({
+                    planillaId: planillaId,
+                    mes: periodo,
+                    docenteNombre: r.docente,
+                    docenteId: r.id,
+                    docenteUID: r.uid || null,
+                    docenteDni: r.dni,
+                    horasTotales: Number(r.horas) || 0,
+                    detalles: detallesAuditoria.filter(d => (d.dni || '').toString().trim() === (r.dni || '').toString().trim()),
+                    firmaJefe: null,
+                    firmaDocente: null,
+                    fechaCreacion: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                firmasGeneradas += 1;
+            } catch (firmaError) {
+                console.error('Error generando firma para docente:', r, firmaError);
+                firmasError = firmaError;
+            }
         }
 
-        alert(`Planilla de ${periodo} guardada exitosamente y bloqueada para auditoría. Se generaron solicitudes de firma.`);
-        
-        const modalElement = document.getElementById('modalCierreMes');
-        const myModal = bootstrap.Modal.getInstance(modalElement);
-        if (myModal) myModal.hide();
-
+        if (firmasError) {
+            console.warn('Planilla guardada pero hubo errores al generar algunas solicitudes de firma.', firmasError);
+            alert(`Planilla de ${periodo} guardada exitosamente, pero hubo problemas al generar solicitudes de firma. Verifica permisos en "firmas_planillas".`);
+        } else {
+            alert(`Planilla de ${periodo} guardada exitosamente y bloqueada para auditoría. Se generaron ${firmasGeneradas} solicitudes de firma.`);
+        }
     } catch (e) {
-        console.error("Error al guardar planilla:", e);
-        alert("OcurriÃ³ un error al intentar guardar la planilla en la base de datos.");
-        btn.innerHTML = originalText;
-        btn.disabled = false;
+        console.error('Error al guardar planilla:', e);
+        if (planillaGuardada) {
+            alert(`La planilla se guardó en Firebase, pero ocurrió un error adicional al procesar las firmas o el cierre. Revisa la consola para más detalles.`);
+        } else {
+            alert('Ocurrió un error al intentar guardar la planilla en la base de datos.');
+        }
+        return;
+    } finally {
+        if (btn) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
     }
+
+    const modalElement = document.getElementById('modalCierreMes');
+    const myModal = bootstrap.Modal.getInstance(modalElement);
+    if (myModal) myModal.hide();
 }
 
 function cargarPlanillasGuardadas() {
