@@ -841,49 +841,124 @@ async function verMisPlanillas() {
     let loaded = false;
     console.log('Buscando planillas de docente', { uid: normalizedUID, dni: normalizedDNI, id: normalizedID, numericDNI, numericID });
 
-    if (normalizedUID) {
-        loaded = await loadResults(db.collection('firmas_planillas').where('docenteUID', '==', normalizedUID));
-    }
+    const searchFirmas = async () => {
+        if (normalizedUID) {
+            loaded = await loadResults(db.collection('firmas_planillas').where('docenteUID', '==', normalizedUID));
+            if (loaded) return true;
+        }
 
-    if (!loaded && normalizedDNI) {
-        loaded = await loadResults(db.collection('firmas_planillas').where('docenteDni', '==', normalizedDNI));
-    }
+        if (normalizedDNI) {
+            loaded = await loadResults(db.collection('firmas_planillas').where('docenteDni', '==', normalizedDNI));
+            if (loaded) return true;
+        }
 
-    if (!loaded && numericDNI !== null) {
-        loaded = await loadResults(db.collection('firmas_planillas').where('docenteDni', '==', numericDNI));
-    }
+        if (numericDNI !== null) {
+            loaded = await loadResults(db.collection('firmas_planillas').where('docenteDni', '==', numericDNI));
+            if (loaded) return true;
+        }
 
-    if (!loaded && normalizedID) {
-        loaded = await loadResults(db.collection('firmas_planillas').where('docenteId', '==', normalizedID));
-    }
+        if (normalizedID) {
+            loaded = await loadResults(db.collection('firmas_planillas').where('docenteId', '==', normalizedID));
+            if (loaded) return true;
+        }
 
-    if (!loaded && numericID !== null) {
-        loaded = await loadResults(db.collection('firmas_planillas').where('docenteId', '==', numericID));
-    }
+        if (numericID !== null) {
+            loaded = await loadResults(db.collection('firmas_planillas').where('docenteId', '==', numericID));
+            if (loaded) return true;
+        }
 
-    if (!loaded && normalizedDNI) {
-        loaded = await loadResults(db.collection('firmas_planillas').where('dni', '==', normalizedDNI));
-    }
+        if (normalizedDNI) {
+            loaded = await loadResults(db.collection('firmas_planillas').where('dni', '==', normalizedDNI));
+            if (loaded) return true;
+        }
 
-    if (!loaded && numericDNI !== null) {
-        loaded = await loadResults(db.collection('firmas_planillas').where('dni', '==', numericDNI));
-    }
+        if (numericDNI !== null) {
+            loaded = await loadResults(db.collection('firmas_planillas').where('dni', '==', numericDNI));
+            if (loaded) return true;
+        }
 
-    if (!loaded && normalizedID) {
-        loaded = await loadResults(db.collection('firmas_planillas').where('id_docente', '==', normalizedID));
-    }
+        if (normalizedID) {
+            loaded = await loadResults(db.collection('firmas_planillas').where('id_docente', '==', normalizedID));
+            if (loaded) return true;
+        }
 
-    if (!loaded && numericID !== null) {
-        loaded = await loadResults(db.collection('firmas_planillas').where('id_docente', '==', numericID));
-    }
+        if (numericID !== null) {
+            loaded = await loadResults(db.collection('firmas_planillas').where('id_docente', '==', numericID));
+            if (loaded) return true;
+        }
 
-    if (!loaded && normalizedUID) {
-        loaded = await loadResults(db.collection('firmas_planillas').where('uid', '==', normalizedUID));
+        if (normalizedUID) {
+            loaded = await loadResults(db.collection('firmas_planillas').where('uid', '==', normalizedUID));
+            if (loaded) return true;
+        }
+
+        return false;
+    };
+
+    const searchPlanillas = async () => {
+        const snapshot = await db.collection('planillas').orderBy('fechaCreacion', 'desc').get();
+        const matches = [];
+
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const resumen = Array.isArray(data.resumen) ? data.resumen : [];
+            resumen.forEach(item => {
+                const itemDNI = item.dni?.toString().trim();
+                if (itemDNI && itemDNI === normalizedDNI) {
+                    matches.push({
+                        id: doc.id,
+                        source: 'planillas',
+                        mes: data.mes || item.mes || 'Sin periodo',
+                        horasTotales: Number(item.horas || item.horasTotales || 0),
+                        firmaDocente: null,
+                        firmaJefe: null,
+                        planillaData: data,
+                        resumenItem: item
+                    });
+                }
+            });
+        });
+
+        if (matches.length === 0) {
+            return false;
+        }
+
+        window.docentePlanillasData = matches;
+        const tbody = document.getElementById('tabla-mis-planillas');
+        let html = '';
+
+        matches.forEach(data => {
+            const estado = '<span class="badge bg-secondary">Sin firma</span>';
+            const firmaDocente = '<span class="badge bg-secondary">No</span>';
+            const firmaJefe = '<span class="badge bg-secondary">No</span>';
+
+            html += `
+                <tr>
+                    <td class="fw-bold">${data.mes}</td>
+                    <td>${Number(data.horasTotales || 0).toFixed(2)}</td>
+                    <td>${estado}</td>
+                    <td>${firmaDocente}</td>
+                    <td>${firmaJefe}</td>
+                    <td class="text-nowrap">
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="descargarPlanillaDocente('${data.id}')">
+                            <i class="bi bi-download"></i> Descargar
+                        </button>
+                    </td>
+                </tr>`;
+        });
+
+        tbody.innerHTML = html;
+        return true;
+    };
+
+    const foundFirma = await searchFirmas();
+    if (!foundFirma) {
+        loaded = await searchPlanillas();
     }
 
     if (!loaded) {
         const tbody = document.getElementById('tabla-mis-planillas');
-        tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-muted">No se encontraron planillas asociadas a tu docente.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-muted">No se encontraron planillas asociadas a tu DNI.</td></tr>';
         window.docentePlanillasData = [];
     }
 }
@@ -892,7 +967,40 @@ function descargarPlanillaDocente(planillaId) {
     if (!window.docentePlanillasData) return alert('No hay planillas cargadas.');
     const planilla = window.docentePlanillasData.find(d => d.id === planillaId);
     if (!planilla) return alert('Planilla no encontrada.');
+
+    if (planilla.source === 'planillas') {
+        descargarPlanillaDesdePlanilla(planilla);
+        return;
+    }
+
     generarPDF(planillaId, true);
+}
+
+function descargarPlanillaDesdePlanilla(planilla) {
+    const data = planilla.planillaData;
+    const item = planilla.resumenItem || {};
+    const detalles = Array.isArray(data.detalles) ? data.detalles.filter(d => d.dni?.toString().trim() === item.dni?.toString().trim()) : [];
+
+    let csv = '\ufeffFecha;Curso;NRC;Tema;Horas;Docente;DNI;Mes\n';
+    if (detalles.length > 0) {
+        detalles.forEach(d => {
+            const fecha = d.inicio ? (d.inicio.toDate ? d.inicio.toDate().toLocaleDateString() : new Date(d.inicio).toLocaleDateString()) : '';
+            const curso = (d.nombreCurso || '').replace(/"/g, '""');
+            const tema = (d.temaDictado || '').replace(/"/g, '""');
+            const nrc = d.nrc || '';
+            const horas = Number(d.horasTotales || d.horas || 0).toFixed(2);
+            csv += `"${fecha}";"${curso}";"${nrc}";"${tema}";"${horas}";"${item.docente || ''}";"${item.dni || ''}";"${planilla.mes || ''}"\n`;
+        });
+    } else {
+        const horas = Number(item.horas || item.horasTotales || 0).toFixed(2);
+        csv += `"";"";"";"";"${horas}";"${item.docente || ''}";"${item.dni || ''}";"${planilla.mes || ''}"\n`;
+    }
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Planilla_${planilla.mes?.replace(/\s+/g, '_') || 'Docente'}_${item.dni || 'sin_dni'}.csv`;
+    link.click();
 }
 
 function descargarMisRegistros() {
