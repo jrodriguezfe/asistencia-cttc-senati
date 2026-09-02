@@ -368,24 +368,9 @@ async function buscarInfoNRC() {
         infoCard.style.display = 'none';
         
         try {
-            // Intentar buscar el NRC asumiendo que se guardó como Texto
-            let snapshot = await dbProgramacion.collection('programaciones').where('NRC', '==', nrcValue).limit(1).get();
-            
-            // Si no lo encuentra, intentar buscarlo asumiendo que se guardó como Número
-            if (snapshot.empty) {
-                snapshot = await dbProgramacion.collection('programaciones').where('NRC', '==', Number(nrcValue)).limit(1).get();
-            }
+            const data = await obtenerProgramacionPorNRC(nrcValue);
 
-            // Si aún no lo encuentra, intentar con la propiedad en minúscula "nrc" (Texto y Número)
-            if (snapshot.empty) {
-                snapshot = await dbProgramacion.collection('programaciones').where('nrc', '==', nrcValue).limit(1).get();
-            }
-            if (snapshot.empty) {
-                snapshot = await dbProgramacion.collection('programaciones').where('nrc', '==', Number(nrcValue)).limit(1).get();
-            }
-
-            if (!snapshot.empty) {
-                const data = snapshot.docs[0].data();
+            if (data) {
                 console.log("✓ NRC Encontrado en Firebase:", data); // Ayuda para depurar en consola
                 // Función auxiliar para extraer el campo ignorando mayúsculas/minúsculas o espacios accidentales
                 const getField = (obj, propName) => {
@@ -474,6 +459,101 @@ async function buscarInfoNRC() {
             resetSessionPlaceholders();
         }
     }, 800); // 800 milisegundos de espera tras la última pulsación
+}
+
+async function obtenerProgramacionPorNRC(nrcValue) {
+    const valores = [nrcValue, Number(nrcValue)];
+    const campos = ['NRC', 'nrc'];
+
+    for (const campo of campos) {
+        for (const valor of valores) {
+            const snapshot = await dbProgramacion.collection('programaciones')
+                .where(campo, '==', valor).limit(1).get();
+            if (!snapshot.empty) return snapshot.docs[0].data();
+        }
+    }
+    return null;
+}
+
+function obtenerDuracionHoras(data) {
+    if (!data) return null;
+    const key = Object.keys(data).find(k => {
+        const nombre = k.trim().toLowerCase().replace(/[óó]/g, 'o');
+        return nombre === 'duracion' || nombre === 'duración' || nombre.includes('duracion');
+    });
+    if (!key) return null;
+    const coincidencia = String(data[key]).replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+    const horas = coincidencia ? Number(coincidencia[0]) : NaN;
+    return Number.isFinite(horas) ? horas : null;
+}
+
+async function generarAvanceNRC() {
+    const registros = window.filteredAsistencias || [];
+    const container = document.getElementById('contenido-avance-nrc');
+    if (!container) return;
+    if (!registros.length) {
+        alert('No hay registros en el rango filtrado.');
+        return;
+    }
+
+    container.innerHTML = '<div class="text-center py-4"><span class="spinner-border text-warning"></span> Consultando duraciones...</div>';
+    const resumen = {};
+    registros.forEach(item => {
+        const data = item.data;
+        const nrc = String(data.nrc || '').trim();
+        if (!nrc) return;
+        const key = `${data.uid || data.id_docente || data.dni || data.nombre || 'sin-docente'}||${nrc}`;
+        if (!resumen[key]) {
+            resumen[key] = { docente: data.nombre || 'Sin nombre', nrc, avance: 0, duracion: null };
+        }
+        resumen[key].avance += Number(data.horasTotales) || 0;
+    });
+
+    const duraciones = {};
+    const nrcs = [...new Set(Object.values(resumen).map(item => item.nrc))];
+    await Promise.all(nrcs.map(async nrc => {
+        try {
+            duraciones[nrc] = obtenerDuracionHoras(await obtenerProgramacionPorNRC(nrc));
+        } catch (error) {
+            console.error(`Error consultando NRC ${nrc}:`, error);
+            duraciones[nrc] = null;
+        }
+    }));
+    Object.values(resumen).forEach(item => {
+        item.duracion = duraciones[item.nrc];
+    });
+
+    const filas = Object.values(resumen).sort((a, b) => a.docente.localeCompare(b.docente, 'es'));
+    let html = '<div class="table-responsive"><table class="table table-bordered table-hover align-middle">';
+    html += '<thead class="table-light"><tr><th>Docente</th><th>NRC</th><th class="text-end">Avance de horas</th><th class="text-end">Duración NRC</th><th>Estado</th></tr></thead><tbody>';
+    filas.forEach(item => {
+        const coincide = item.duracion !== null && Math.abs(item.avance - item.duracion) < 0.01;
+        const estado = item.duracion === null
+            ? '<span class="badge bg-secondary">NRC no encontrada</span>'
+            : coincide
+                ? '<span class="badge bg-success">OK</span>'
+                : `<span class="badge bg-danger" title="${item.avance < item.duracion ? 'Faltan horas' : 'Excede la duración'}"><i class="bi bi-exclamation-triangle-fill"></i> ALERTA: ${item.avance < item.duracion ? 'Menor' : 'Mayor'}</span>`;
+        html += `<tr><td>${item.docente}</td><td>${item.nrc}</td><td class="text-end fw-bold">${item.avance.toFixed(2)} h</td><td class="text-end">${item.duracion === null ? '---' : item.duracion.toFixed(2) + ' h'}</td><td>${estado}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+    window._ultimoAvanceNRC = filas;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAvanceNRC')).show();
+}
+
+function exportarAvanceNRCExcel() {
+    const filas = window._ultimoAvanceNRC || [];
+    if (!filas.length) return;
+    const rows = [['Docente', 'NRC', 'Avance de horas', 'Duración NRC', 'Estado']];
+    filas.forEach(item => {
+        const estado = item.duracion === null ? 'NRC no encontrada' : Math.abs(item.avance - item.duracion) < 0.01 ? 'OK' : item.avance < item.duracion ? 'Menor' : 'Mayor';
+        rows.push([item.docente, item.nrc, item.avance.toFixed(2), item.duracion === null ? '' : item.duracion.toFixed(2), estado]);
+    });
+    const csv = '\ufeff' + rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(';')).join('\n');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    link.download = `Avance_por_NRC_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
 }
 
 async function endSession() {

@@ -79,15 +79,18 @@
                     <label class="form-label fw-bold">Fecha Fin</label>
                     <input type="date" id="filtro-hasta" class="form-control" onchange="cargarReporteAsistencias()">
                 </div>
-                <div class="col-md-4 d-flex align-items-end gap-2">
-                    <button class="btn btn-outline-secondary w-50" onclick="limpiarFiltros()">
+                <div class="col-md-4 d-flex align-items-end gap-2 flex-wrap">
+                    <button class="btn btn-outline-secondary flex-fill" onclick="limpiarFiltros()">
                         <i class="bi bi-eraser"></i> Limpiar
                     </button>
-                    <button class="btn btn-primary w-33 fw-bold" onclick="generarReporteCierreMes()">
+                    <button class="btn btn-primary flex-fill fw-bold" onclick="generarReporteCierreMes()">
                         <i class="bi bi-calculator"></i> Cierre de Mes
                     </button>
-                    <button class="btn btn-info w-33 fw-bold text-white" onclick="generarReporteDocente()">
+                    <button class="btn btn-info flex-fill fw-bold text-white" onclick="generarReporteDocente()">
                         <i class="bi bi-bar-chart-line"></i> Reporte Docente
+                    </button>
+                    <button class="btn btn-warning flex-fill fw-bold" onclick="generarAvanceNRC()">
+                        <i class="bi bi-speedometer2"></i> Avance por NRC
                     </button>
                 </div>
                 <div class="modal fade" id="modalCierreMes" tabindex="-1" aria-hidden="true">
@@ -207,6 +210,26 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                         <button type="button" class="btn btn-success" onclick="exportarReporteDocenteExcel()">Exportar Excel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="modalAvanceNRC" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-speedometer2"></i> Avance por NRC</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="contenido-avance-nrc"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="button" class="btn btn-success" onclick="exportarAvanceNRCExcel()">
+                            <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+                        </button>
                     </div>
                 </div>
             </div>
