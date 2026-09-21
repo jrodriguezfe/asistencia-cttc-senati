@@ -487,6 +487,43 @@ function obtenerDuracionHoras(data) {
     return Number.isFinite(horas) ? horas : null;
 }
 
+function obtenerCampoProgramacion(data, nombres) {
+    if (!data) return null;
+    const nombresNormalizados = nombres.map(nombre => nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase());
+    const key = Object.keys(data).find(campo => {
+        const campoNormalizado = campo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+        return nombresNormalizados.includes(campoNormalizado);
+    });
+    return key ? data[key] : null;
+}
+
+function escaparHtmlAvanceNRC(valor) {
+    return String(valor ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function obtenerEstadoAvanceNRC(item) {
+    if (item.duracion === null) return 'NRC no encontrada';
+    return Math.abs(item.avance - item.duracion) < 0.01 ? 'OK' : item.avance < item.duracion ? 'Menor' : 'Mayor';
+}
+
+function aplicarFiltrosAvanceNRC() {
+    const filtros = Array.from(document.querySelectorAll('.filtro-avance-nrc')).map(input => input.value.trim().toLowerCase());
+    document.querySelectorAll('#tabla-avance-nrc-body tr').forEach(fila => {
+        const valores = Array.from(fila.querySelectorAll('[data-filtro]')).map(celda => celda.dataset.filtro.toLowerCase());
+        fila.style.display = valores.every((valor, indice) => !filtros[indice] || valor.includes(filtros[indice])) ? '' : 'none';
+    });
+}
+
+function limpiarFiltrosAvanceNRC() {
+    document.querySelectorAll('.filtro-avance-nrc').forEach(input => input.value = '');
+    aplicarFiltrosAvanceNRC();
+}
+
 async function generarAvanceNRC() {
     const registros = window.filteredAsistencias || [];
     const container = document.getElementById('contenido-avance-nrc');
@@ -496,7 +533,7 @@ async function generarAvanceNRC() {
         return;
     }
 
-    container.innerHTML = '<div class="text-center py-4"><span class="spinner-border text-warning"></span> Consultando duraciones...</div>';
+    container.innerHTML = '<div class="text-center py-4"><span class="spinner-border text-warning"></span> Consultando programación...</div>';
     const resumen = {};
     registros.forEach(item => {
         const data = item.data;
@@ -509,34 +546,48 @@ async function generarAvanceNRC() {
         resumen[key].avance += Number(data.horasTotales) || 0;
     });
 
-    const duraciones = {};
+    const programaciones = {};
     const nrcs = [...new Set(Object.values(resumen).map(item => item.nrc))];
     await Promise.all(nrcs.map(async nrc => {
         try {
-            duraciones[nrc] = obtenerDuracionHoras(await obtenerProgramacionPorNRC(nrc));
+            const programacion = await obtenerProgramacionPorNRC(nrc);
+            programaciones[nrc] = {
+                duracion: obtenerDuracionHoras(programacion),
+                inicio: obtenerCampoProgramacion(programacion, ['Fecha de inicio', 'Inicio']),
+                fin: obtenerCampoProgramacion(programacion, ['Fecha de fin', 'Fin']),
+                horario: obtenerCampoProgramacion(programacion, ['Horario'])
+            };
         } catch (error) {
             console.error(`Error consultando NRC ${nrc}:`, error);
-            duraciones[nrc] = null;
+            programaciones[nrc] = { duracion: null, inicio: null, fin: null, horario: null };
         }
     }));
     Object.values(resumen).forEach(item => {
-        item.duracion = duraciones[item.nrc];
+        const programacion = programaciones[item.nrc] || {};
+        item.duracion = programacion.duracion ?? null;
+        item.inicio = programacion.inicio || '---';
+        item.fin = programacion.fin || '---';
+        item.horario = programacion.horario || '---';
     });
 
     const filas = Object.values(resumen).sort((a, b) => a.docente.localeCompare(b.docente, 'es'));
-    let html = '<div class="table-responsive"><table class="table table-bordered table-hover align-middle">';
-    html += '<thead class="table-light"><tr><th>Docente</th><th>NRC</th><th class="text-end">Avance de horas</th><th class="text-end">Duración NRC</th><th>Estado</th></tr></thead><tbody>';
+    let html = '<div class="d-flex justify-content-end mb-2"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="limpiarFiltrosAvanceNRC()"><i class="bi bi-eraser"></i> Limpiar filtros</button></div>';
+    html += '<div class="table-responsive"><table class="table table-bordered table-hover align-middle">';
+    html += '<thead class="table-light"><tr><th>Docente</th><th>NRC</th><th>Fecha de inicio</th><th>Fecha de fin</th><th>Horario</th><th class="text-end">Avance de horas</th><th class="text-end">Duración NRC</th><th>Estado</th></tr>';
+    html += '<tr class="align-middle"><th><input class="form-control form-control-sm filtro-avance-nrc" type="search" placeholder="Filtrar docente"></th><th><input class="form-control form-control-sm filtro-avance-nrc" type="search" placeholder="Filtrar NRC"></th><th><input class="form-control form-control-sm filtro-avance-nrc" type="search" placeholder="Filtrar inicio"></th><th><input class="form-control form-control-sm filtro-avance-nrc" type="search" placeholder="Filtrar fin"></th><th><input class="form-control form-control-sm filtro-avance-nrc" type="search" placeholder="Filtrar horario"></th><th><input class="form-control form-control-sm filtro-avance-nrc" type="number" step="0.01" placeholder="Horas"></th><th><input class="form-control form-control-sm filtro-avance-nrc" type="number" step="0.01" placeholder="Duración"></th><th><select class="form-select form-select-sm filtro-avance-nrc"><option value="">Todos</option><option value="ok">OK</option><option value="menor">Menor</option><option value="mayor">Mayor</option><option value="nrc no encontrada">NRC no encontrada</option></select></th></tr></thead><tbody id="tabla-avance-nrc-body">';
     filas.forEach(item => {
         const coincide = item.duracion !== null && Math.abs(item.avance - item.duracion) < 0.01;
+        const estadoTexto = obtenerEstadoAvanceNRC(item);
         const estado = item.duracion === null
             ? '<span class="badge bg-secondary">NRC no encontrada</span>'
             : coincide
                 ? '<span class="badge bg-success">OK</span>'
                 : `<span class="badge bg-danger" title="${item.avance < item.duracion ? 'Faltan horas' : 'Excede la duración'}"><i class="bi bi-exclamation-triangle-fill"></i> ALERTA: ${item.avance < item.duracion ? 'Menor' : 'Mayor'}</span>`;
-        html += `<tr><td>${item.docente}</td><td>${item.nrc}</td><td class="text-end fw-bold">${item.avance.toFixed(2)} h</td><td class="text-end">${item.duracion === null ? '---' : item.duracion.toFixed(2) + ' h'}</td><td>${estado}</td></tr>`;
+        html += `<tr><td data-filtro="${escaparHtmlAvanceNRC(item.docente)}">${escaparHtmlAvanceNRC(item.docente)}</td><td data-filtro="${escaparHtmlAvanceNRC(item.nrc)}">${escaparHtmlAvanceNRC(item.nrc)}</td><td data-filtro="${escaparHtmlAvanceNRC(item.inicio)}">${escaparHtmlAvanceNRC(item.inicio)}</td><td data-filtro="${escaparHtmlAvanceNRC(item.fin)}">${escaparHtmlAvanceNRC(item.fin)}</td><td data-filtro="${escaparHtmlAvanceNRC(item.horario)}">${escaparHtmlAvanceNRC(item.horario)}</td><td data-filtro="${item.avance.toFixed(2)}" class="text-end fw-bold">${item.avance.toFixed(2)} h</td><td data-filtro="${item.duracion === null ? '---' : item.duracion.toFixed(2)}" class="text-end">${item.duracion === null ? '---' : item.duracion.toFixed(2) + ' h'}</td><td data-filtro="${escaparHtmlAvanceNRC(estadoTexto)}">${estado}</td></tr>`;
     });
     html += '</tbody></table></div>';
     container.innerHTML = html;
+    document.querySelectorAll('.filtro-avance-nrc').forEach(input => input.addEventListener('input', aplicarFiltrosAvanceNRC));
     window._ultimoAvanceNRC = filas;
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAvanceNRC')).show();
 }
@@ -544,10 +595,10 @@ async function generarAvanceNRC() {
 function exportarAvanceNRCExcel() {
     const filas = window._ultimoAvanceNRC || [];
     if (!filas.length) return;
-    const rows = [['Docente', 'NRC', 'Avance de horas', 'Duración NRC', 'Estado']];
+    const rows = [['Docente', 'NRC', 'Fecha de inicio', 'Fecha de fin', 'Horario', 'Avance de horas', 'Duración NRC', 'Estado']];
     filas.forEach(item => {
         const estado = item.duracion === null ? 'NRC no encontrada' : Math.abs(item.avance - item.duracion) < 0.01 ? 'OK' : item.avance < item.duracion ? 'Menor' : 'Mayor';
-        rows.push([item.docente, item.nrc, item.avance.toFixed(2), item.duracion === null ? '' : item.duracion.toFixed(2), estado]);
+        rows.push([item.docente, item.nrc, item.inicio, item.fin, item.horario, item.avance.toFixed(2), item.duracion === null ? '' : item.duracion.toFixed(2), estado]);
     });
     const csv = '\ufeff' + rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(';')).join('\n');
     const link = document.createElement('a');
