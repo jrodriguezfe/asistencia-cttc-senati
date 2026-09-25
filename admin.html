@@ -177,6 +177,9 @@
         <div class="card shadow-sm border-0 p-4 mt-4">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="fw-bold text-principal"><i class="bi bi-safe"></i> Planillas Guardadas (Auditoría)</h2>
+                <button class="btn btn-outline-primary fw-bold" onclick="abrirConsolidadoPlanillas()">
+                    <i class="bi bi-collection"></i> Ver consolidado
+                </button>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
@@ -193,6 +196,58 @@
                         <tr><td colspan="5" class="text-center text-muted py-3">Cargando planillas guardadas...</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <div class="modal fade" id="modalConsolidadoPlanillas" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-collection"></i> Consolidado de Planillas</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="resumen-consolidado-planillas" class="small text-muted mb-3"></div>
+                        <div class="d-flex gap-2 mb-3" role="tablist">
+                            <button type="button" class="btn btn-primary btn-sm" id="btn-vista-detalle-planillas" onclick="mostrarVistaConsolidado('detalle')">
+                                <i class="bi bi-list-ul"></i> Detalle de planillas
+                            </button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-vista-docente-planillas" onclick="mostrarVistaConsolidado('docente')">
+                                <i class="bi bi-person-lines-fill"></i> Por docente y mes
+                            </button>
+                        </div>
+                        <div id="vista-detalle-planillas" class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Mes / Periodo</th>
+                                        <th>Fecha de Registro</th>
+                                        <th>Docente</th>
+                                        <th>ID</th>
+                                        <th>DNI</th>
+                                        <th class="text-end">Horas</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-consolidado-planillas-body"></tbody>
+                            </table>
+                        </div>
+                        <div id="vista-docente-planillas" class="table-responsive d-none">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead id="tabla-consolidado-docente-head" class="table-light"></thead>
+                                <tbody id="tabla-consolidado-docente-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="button" class="btn btn-outline-success fw-bold" onclick="descargarConsolidadoPorDocente()">
+                            <i class="bi bi-person-lines-fill"></i> Descargar por docente
+                        </button>
+                        <button type="button" class="btn btn-success fw-bold" onclick="descargarConsolidadoPlanillas()">
+                            <i class="bi bi-download"></i> Descargar consolidado
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 

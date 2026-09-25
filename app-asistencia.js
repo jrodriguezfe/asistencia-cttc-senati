@@ -1729,6 +1729,7 @@ function cargarPlanillasGuardadas() {
 
     // Usamos onSnapshot para que se actualice en tiempo real sin recargar la página
     unsubscribePlanillas = db.collection('planillas').orderBy('fechaCreacion', 'desc').onSnapshot(snapshot => {
+        window.planillasAuditoriaData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         let html = '';
         if (snapshot.empty) {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No hay planillas histÃ³ricas guardadas.</td></tr>';
@@ -1764,6 +1765,197 @@ function cargarPlanillasGuardadas() {
         });
         tbody.innerHTML = html;
     });
+}
+
+function obtenerFilasConsolidadoPlanillas() {
+    const filas = [];
+    (window.planillasAuditoriaData || []).forEach(planilla => {
+        const fecha = planilla.fechaCreacion ? planilla.fechaCreacion.toDate().toLocaleString() : 'Reciente';
+        (planilla.resumen || []).forEach(resumen => {
+            filas.push({
+                mes: planilla.mes || 'Sin periodo',
+                fecha,
+                docente: resumen.docente || 'Sin nombre',
+                id: resumen.id || '',
+                dni: resumen.dni || '',
+                horas: Number(resumen.horas) || 0
+            });
+        });
+    });
+    return filas;
+}
+
+function abrirConsolidadoPlanillas() {
+    const filas = obtenerFilasConsolidadoPlanillas();
+    const tbody = document.getElementById('tabla-consolidado-planillas-body');
+    const theadDocente = document.getElementById('tabla-consolidado-docente-head');
+    const tbodyDocente = document.getElementById('tabla-consolidado-docente-body');
+    const resumen = document.getElementById('resumen-consolidado-planillas');
+    if (!tbody || !theadDocente || !tbodyDocente || !resumen) return;
+
+    const matrizDocente = obtenerMatrizConsolidadoPorDocente(filas);
+
+    if (!filas.length) {
+        resumen.textContent = 'No hay planillas guardadas para consolidar.';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No hay datos disponibles.</td></tr>';
+        theadDocente.innerHTML = '';
+        tbodyDocente.innerHTML = '<tr><td class="text-center text-muted py-4">No hay datos disponibles.</td></tr>';
+    } else {
+        const totalHoras = filas.reduce((total, fila) => total + fila.horas, 0);
+        resumen.textContent = `${filas.length} registros consolidados | ${matrizDocente.filas.length} docentes | ${totalHoras.toFixed(2)} horas acumuladas`;
+        tbody.innerHTML = filas.map(fila => `
+            <tr>
+                <td class="fw-bold text-primary">${fila.mes}</td>
+                <td>${fila.fecha}</td>
+                <td>${fila.docente}</td>
+                <td>${fila.id}</td>
+                <td>${fila.dni}</td>
+                <td class="text-end fw-bold">${fila.horas.toFixed(2)}</td>
+            </tr>`).join('');
+        theadDocente.innerHTML = `<tr>
+            <th>Docente</th>
+            <th>ID</th>
+            <th>DNI</th>
+            ${matrizDocente.meses.map(mes => `<th class="text-end">${mes}</th>`).join('')}
+            <th class="text-end">Total</th>
+        </tr>`;
+        tbodyDocente.innerHTML = matrizDocente.filas.map(fila => `
+            <tr>
+                <td class="fw-bold">${fila.docente}</td>
+                <td>${fila.id}</td>
+                <td>${fila.dni}</td>
+                ${matrizDocente.meses.map(mes => `<td class="text-end">${(fila.horasPorMes[mes] || 0).toFixed(2)}</td>`).join('')}
+                <td class="text-end fw-bold text-success">${fila.total.toFixed(2)}</td>
+            </tr>`).join('') + `
+            <tr class="table-light fw-bold">
+                <td colspan="3">Total por mes</td>
+                ${matrizDocente.meses.map(mes => `<td class="text-end text-primary">${matrizDocente.totalesPorMes[mes].toFixed(2)}</td>`).join('')}
+                <td class="text-end text-success">${matrizDocente.totalGeneral.toFixed(2)}</td>
+            </tr>`;
+    }
+
+    mostrarVistaConsolidado('detalle');
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConsolidadoPlanillas')).show();
+}
+
+function obtenerMatrizConsolidadoPorDocente(filas) {
+    const meses = [];
+    const mesesRegistrados = new Set();
+    const agrupado = new Map();
+    filas.forEach(fila => {
+        if (!mesesRegistrados.has(fila.mes)) {
+            mesesRegistrados.add(fila.mes);
+            meses.push(fila.mes);
+        }
+        const clave = `${fila.id}|${fila.dni}|${fila.docente}`;
+        const existente = agrupado.get(clave);
+        if (existente) {
+            existente.horasPorMes[fila.mes] = (existente.horasPorMes[fila.mes] || 0) + fila.horas;
+            existente.total += fila.horas;
+        } else {
+            agrupado.set(clave, {
+                docente: fila.docente,
+                id: fila.id,
+                dni: fila.dni,
+                horasPorMes: { [fila.mes]: fila.horas },
+                total: fila.horas
+            });
+        }
+    });
+    meses.sort(compararPeriodosAscendente);
+    const filasMatriz = Array.from(agrupado.values()).sort((a, b) => a.docente.localeCompare(b.docente));
+    const totalesPorMes = {};
+    meses.forEach(mes => {
+        totalesPorMes[mes] = filasMatriz.reduce((total, fila) => total + (fila.horasPorMes[mes] || 0), 0);
+    });
+
+    return {
+        meses,
+        filas: filasMatriz,
+        totalesPorMes,
+        totalGeneral: filasMatriz.reduce((total, fila) => total + fila.total, 0)
+    };
+}
+
+function compararPeriodosAscendente(periodoA, periodoB) {
+    const meses = {
+        enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
+        julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9,
+        noviembre: 10, diciembre: 11
+    };
+    const extraerFecha = periodo => {
+        const texto = String(periodo).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const coincidencia = texto.match(/(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s*(\d{4})?/);
+        if (!coincidencia) return null;
+        return {
+            anio: Number(coincidencia[2]) || 0,
+            mes: meses[coincidencia[1]]
+        };
+    };
+    const fechaA = extraerFecha(periodoA);
+    const fechaB = extraerFecha(periodoB);
+    if (fechaA && fechaB && (fechaA.anio !== fechaB.anio || fechaA.mes !== fechaB.mes)) {
+        return fechaA.anio - fechaB.anio || fechaA.mes - fechaB.mes;
+    }
+    return String(periodoA).localeCompare(String(periodoB), 'es');
+}
+
+function mostrarVistaConsolidado(vista) {
+    const esDocente = vista === 'docente';
+    document.getElementById('vista-detalle-planillas')?.classList.toggle('d-none', esDocente);
+    document.getElementById('vista-docente-planillas')?.classList.toggle('d-none', !esDocente);
+    document.getElementById('btn-vista-detalle-planillas')?.classList.toggle('btn-primary', !esDocente);
+    document.getElementById('btn-vista-detalle-planillas')?.classList.toggle('btn-outline-primary', esDocente);
+    document.getElementById('btn-vista-docente-planillas')?.classList.toggle('btn-primary', esDocente);
+    document.getElementById('btn-vista-docente-planillas')?.classList.toggle('btn-outline-primary', !esDocente);
+}
+
+function descargarConsolidadoPlanillas() {
+    const filas = obtenerFilasConsolidadoPlanillas();
+    if (!filas.length) return alert('No hay planillas guardadas para descargar.');
+
+    const escaparCsv = valor => `"${String(valor ?? '').replace(/"/g, '""')}"`;
+    const encabezado = ['Mes / Periodo', 'Fecha de Registro', 'Docente', 'ID', 'DNI', 'Horas'];
+    const contenido = [encabezado, ...filas.map(fila => [
+        fila.mes, fila.fecha, fila.docente, fila.id, fila.dni, fila.horas.toFixed(2)
+    ])].map(fila => fila.map(escaparCsv).join(';')).join('\n');
+
+    const blob = new Blob(['\ufeff' + contenido], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Consolidado_Planillas_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
+function descargarConsolidadoPorDocente() {
+    const matriz = obtenerMatrizConsolidadoPorDocente(obtenerFilasConsolidadoPlanillas());
+    if (!matriz.filas.length) return alert('No hay planillas guardadas para descargar.');
+
+    const escaparCsv = valor => `"${String(valor ?? '').replace(/"/g, '""')}"`;
+    const encabezado = ['Docente', 'ID', 'DNI', ...matriz.meses, 'Total'];
+    const filasCsv = matriz.filas.map(fila => [
+        fila.docente,
+        fila.id,
+        fila.dni,
+        ...matriz.meses.map(mes => (fila.horasPorMes[mes] || 0).toFixed(2)),
+        fila.total.toFixed(2)
+    ]);
+    filasCsv.push([
+        'Total por mes',
+        '',
+        '',
+        ...matriz.meses.map(mes => matriz.totalesPorMes[mes].toFixed(2)),
+        matriz.totalGeneral.toFixed(2)
+    ]);
+    const contenido = [encabezado, ...filasCsv].map(fila => fila.map(escaparCsv).join(';')).join('\n');
+
+    const blob = new Blob(['\ufeff' + contenido], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Consolidado_Por_Docente_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
 }
 
 async function eliminarPlanilla(id) {
